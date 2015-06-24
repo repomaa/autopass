@@ -1,0 +1,172 @@
+#!/usr/bin/env ruby
+
+require 'yaml'
+require 'fileutils'
+require 'shellwords'
+require 'digest/sha2'
+
+class Entry
+  attr_reader :name, :attributes
+
+  def initialize(name, attributes = {})
+    @name = name
+    @attributes = attributes
+  end
+
+  def autotype!
+    return if autotype_values.empty?
+    focus_window!
+    autotype_values[0..-2].each do |value|
+      `xdotool type #{Shellwords.escape(value)}`
+      `xdotool key Tab`
+    end
+    `xdotool type #{Shellwords.escape(autotype_values.last)}`
+  end
+
+  def autotype_values
+    @autotype_values ||= begin
+      attributes.values_at(*(attributes['autotype'] || %w(user pass)))
+    end
+  end
+
+  def focus_window!
+    `xdotool windowfocus --sync #{window_id}`
+  end
+
+  def window_id
+    output = `xdotool search #{Shellwords.escape(window_regex)}`.chomp
+    if output.lines.size == 1
+      output.to_i
+    else
+      `notify-send 'Please select the target window'`
+      `xwininfo -int`[/(?<=Window id: )\d+/]
+    end
+  end
+
+  def match(window_name)
+    window_name.match(/#{attributes['window'] || name}/i)
+  end
+
+  def window_regex
+    attributes['window'] || name
+  end
+end
+
+class PassBackend
+  DEFAULT_OPTIONS = {
+    'cache_file' => '/tmp/getpw_cache.gpg'
+  }
+  PASS_STORE = "#{ENV['HOME']}/.password-store"
+
+  def initialize(options = {})
+    @options = DEFAULT_OPTIONS.merge(options)
+    fail('cache_key option not defined') unless @options['cache_key']
+    init_cache
+    @needs_saving = false
+    update_cache
+    save_cache if needs_saving?
+  end
+
+  def entries
+    @cache[:entries]
+  end
+
+  def sorted_entries(focused_window)
+    Hash[
+      entries.sort_by do |name, entry|
+        match = entry.match(focused_window)
+        match ? "\0" * focused_window_name.sub(match[0], '').size : name
+      end
+    ]
+  end
+
+  private
+
+  def save_cache
+    File.delete(@options['cache_file']) if File.exist?(@options['cache_file'])
+    gpg_cmd = 'gpg -eq --batch -r '\
+              "#{@options['cache_key']} -o #{@options['cache_file']}"
+    IO.popen(gpg_cmd, 'w+') do |io|
+      io.puts(Marshal.dump(@cache))
+      io.close_write
+    end
+  end
+
+  def entry_from(file)
+    name = file.sub(/\.gpg$/, '')
+    content = `pass show #{name}`
+    pass = content.lines.first
+    yaml = content.lines[1..-1].join
+    Entry.new(
+      File.basename(name),
+      YAML.load(yaml).merge('pass' => pass)
+    )
+  end
+
+  def files
+    result = nil
+    FileUtils.cd(PASS_STORE) do
+      result = Dir['**/*.gpg']
+    end
+    result
+  end
+
+  def needs_saving?
+    @needs_saving
+  end
+
+  def update_cache
+    checksums.each do |file, checksum|
+      next if @cache[:checksums][file] == checksum
+      @cache[:entries][file] = entry_from(file)
+      @cache[:checksums][file] = checksum
+      @needs_saving = true
+    end
+  end
+
+  def checksums
+    result = nil
+    FileUtils.cd(PASS_STORE) do
+      result = Hash[
+        files.map { |file| [file, Digest::SHA512.file(file).hexdigest] }
+      ]
+    end
+    result
+  end
+
+  def init_cache
+    if File.exist?(@options['cache_file'])
+      @cache = Marshal.load(`gpg -dq --batch #{@options['cache_file']}`)
+    else
+      @cache = { checksums: {}, entries: {} }
+    end
+  end
+end
+
+focused_window_id = `xdotool getwindowfocus`.chomp.to_i
+focused_window_name = `xdotool getwindowname #{focused_window_id}`
+
+config_dir = ENV['XDG_CONFIG_HOME'] || "#{ENV['HOME']}/.config"
+config_file = File.join(config_dir, 'autopass', 'config.yml')
+unless File.exist?(config_file)
+  FileUtils.mkdir_p(File.dirname(config_file))
+  File.write config_file, <<EOF
+---
+cache_file: /tmp/autopass.cache
+# cache_key: YOUR_KEY_ID
+EOF
+  puts "Copied example config to #{config_file}"
+  puts 'Please edit and set the gpg key to use for decrypting the cache'
+  exit
+end
+
+config = YAML.load_file(config_file)
+pass_backend = PassBackend.new(config)
+
+IO.popen('rofi -dmenu -p Search:', 'w+') do |io|
+  io.puts(*pass_backend.sorted_entries(focused_window_name).keys)
+  io.close_write
+  choice = io.gets
+  exit if choice.nil?
+  pass_backend.entries[choice.chomp].autotype!
+end
