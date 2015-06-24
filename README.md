@@ -32,8 +32,8 @@ autotype:
 window: some site.*- Chromium
 ```
 
-You can write any kind of key value pairs here. Only and `autotype`, `window`
-have special meanings.
+You can write any kind of key value pairs here as long as it's valid yaml.
+Only and `autotype`, `window` have special meanings.
 
 By default the name of the entry (without parent group(s)) is used for `window`
 and `['user', 'pass']` for `autotype`.
