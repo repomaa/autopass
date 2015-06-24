@@ -169,7 +169,13 @@ pass_backend = PassBackend.new(config)
 
 choice = nil
 
-IO.popen('rofi -dmenu -z -kb-custom-8 "Alt+p" -kb-custom-9 "Alt+u" -p Search:', 'w+') do |io|
+IO.popen(
+  'rofi -dmenu -z -kb-custom-8 "Alt+p" -kb-custom-9 "Alt+u" -p Search: '\
+  "-mesg 'Alt-{1-7}: Alternative autotypes\n"\
+         "Alt-u: Copy username\n"\
+         "Alt-p: Copy password'",
+  'w+'
+) do |io|
   io.puts(*pass_backend.sorted_entries(focused_window_name).keys)
   io.close_write
   choice = io.gets
