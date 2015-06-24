@@ -2,7 +2,7 @@
 
 pkgname=autopass-git
 pkgver=0.r2.0ac233a
-pkgrel=2
+pkgrel=3
 pkgdesc='a rofi frontend for pass'
 arch=(any)
 url='https://github.com/jreinert/autopass'
