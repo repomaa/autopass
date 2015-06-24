@@ -95,7 +95,7 @@ class PassBackend
   def entry_from(file)
     name = file.sub(/\.gpg$/, '')
     content = `pass show #{name}`
-    pass = content.lines.first
+    pass = content.lines.first.chomp
     yaml = content.lines[1..-1].join
     Entry.new(
       File.basename(name),
