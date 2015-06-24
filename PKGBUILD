@@ -7,7 +7,7 @@ pkgdesc='a rofi frontend for pass'
 arch=(any)
 url='https://github.com/jreinert/autopass'
 licence=('MIT')
-depends=(ruby pass rofi xdotool xorg-xwininfo libnotify)
+depends=(ruby pass rofi xdotool xorg-xwininfo libnotify xclip)
 makedepends=(git)
 
 source=("${pkgname}::git+https://github.com/jreinert/autopass.git")
