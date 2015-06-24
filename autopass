@@ -187,11 +187,19 @@ return_value = $?.exitstatus
 @entry = pass_backend.entries[choice.chomp]
 
 def copy(attribute)
-  IO.popen('xclip', 'w+') { |io| io.print(@entry.attributes[attribute]) }
+  clear_clip_pidfile = '/tmp/autopass-clear-clip.pid'
+  value = @entry.attributes[attribute]
+
+  if File.exist?(clear_clip_pidfile)
+    Process.kill(:INT, File.read(clear_clip_pidfile).to_i)
+  end
+  IO.popen('xclip', 'w+') { |io| io.print(value) }
   `notify-send "Copied #{attribute} to clipboard. Clearing in 45 seconds"`
   fork do
+    File.write(clear_clip_pidfile, Process.pid)
     sleep(45)
     IO.popen('xclip', 'w+') { |io| io.print('') }
+    File.delete(clear_clip_pidfile)
   end
 end
 
