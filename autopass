@@ -118,7 +118,7 @@ class PassBackend
   def update_cache
     checksums.each do |file, checksum|
       next if @cache[:checksums][file] == checksum
-      @cache[:entries][file] = entry_from(file)
+      @cache[:entries][file.sub(/\.gpg$/, '')] = entry_from(file)
       @cache[:checksums][file] = checksum
       @needs_saving = true
     end
