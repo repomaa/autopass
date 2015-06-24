@@ -13,20 +13,24 @@ class Entry
     @attributes = attributes
   end
 
-  def autotype!
-    return if autotype_values.empty?
+  def autotype!(index = 0)
+    return if autotype_values(index).empty?
     focus_window!
-    autotype_values[0..-2].each do |value|
+    autotype_values(index)[0..-2].each do |value|
       `xdotool type #{Shellwords.escape(value)}`
       `xdotool key Tab`
     end
-    `xdotool type #{Shellwords.escape(autotype_values.last)}`
+    `xdotool type #{Shellwords.escape(autotype_values(index).last)}`
   end
 
-  def autotype_values
-    @autotype_values ||= begin
-      attributes.values_at(*(attributes['autotype'] || %w(user pass)))
-    end
+  def autotype_values(index)
+    keys = case index
+           when 0 then attributes['autotype'] || %w(user pass)
+           when 1 then attributes['autotype-1'] || %(pass)
+           when 2 then attributes['autotype-2'] || %(user)
+           else attributes["autotype-#{index}"] || []
+           end
+    attributes.values_at(*keys)
   end
 
   def focus_window!
@@ -163,10 +167,31 @@ end
 config = YAML.load_file(config_file)
 pass_backend = PassBackend.new(config)
 
-IO.popen('rofi -dmenu -z -p Search:', 'w+') do |io|
+choice = nil
+
+IO.popen('rofi -dmenu -z -kb-custom-8 "Alt+p" -kb-custom-9 "Alt+u" -p Search:', 'w+') do |io|
   io.puts(*pass_backend.sorted_entries(focused_window_name).keys)
   io.close_write
   choice = io.gets
   exit if choice.nil?
-  pass_backend.entries[choice.chomp].autotype!
+end
+
+return_value = $?.exitstatus
+
+@entry = pass_backend.entries[choice.chomp]
+
+def copy(attribute)
+  IO.popen('xclip', 'w+') { |io| io.print(@entry.attributes[attribute]) }
+  `notify-send "Copied #{attribute} to clipboard. Clearing in 45 seconds"`
+  fork do
+    sleep(45)
+    IO.popen('xclip', 'w+') { |io| io.print('') }
+  end
+end
+
+case return_value
+when 0 then @entry.autotype!
+when 10..16 then @entry.autotype!(return_value - 9)
+when 17 then copy('pass')
+when 18 then copy('user')
 end
