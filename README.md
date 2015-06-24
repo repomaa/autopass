@@ -11,6 +11,16 @@ A rofi frontend for pass
 - displays entries that are most likely to match currently focused window first
 - uses encrypted cache to store pass entries in a single file for fast startup
 
+## Installation
+
+### ArchLinux
+
+Get autopass-git with your favorite aur helper
+
+### Other systems
+
+Copy autopass from this repo somewhere in your path
+
 ## Usage
 
 `autopass`
