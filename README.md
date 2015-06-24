@@ -19,7 +19,15 @@ Get autopass-git with your favorite aur helper
 
 ### Other systems
 
-Copy autopass from this repo somewhere in your path
+Copy autopass from this repo somewhere in your path.
+
+#### Dependencies:
+
+- [pass](https://github.com/zx2c4/password-store)
+- [rofi](https://github.com/DaveDavenport/rofi)
+- [xdotool](http://www.semicomplete.com/projects/xdotool/)
+- [libnotify](https://developer.gnome.org/libnotify)
+- [xwininfo](http://www.xfree86.org/4.2.0/xwininfo.1.html)
 
 ## Usage
 
