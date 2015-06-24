@@ -163,7 +163,7 @@ end
 config = YAML.load_file(config_file)
 pass_backend = PassBackend.new(config)
 
-IO.popen('rofi -dmenu -p Search:', 'w+') do |io|
+IO.popen('rofi -dmenu -z -p Search:', 'w+') do |io|
   io.puts(*pass_backend.sorted_entries(focused_window_name).keys)
   io.close_write
   choice = io.gets
