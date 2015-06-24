@@ -67,5 +67,9 @@ window: some site.*- Chromium
 You can write any kind of key value pairs here as long as it's valid yaml.
 Only and `autotype`, `autotype-{1-7}`, `window` have special meanings.
 
-By default the name of the entry (without parent group(s)) is used for `window`,
-`['user', 'pass']` for `autotype` and `['pass']` for `autotype-1`, `['user']` for `autotype-2`
+### Defaults:
+
+- `window`: name of the entry (without parent group(s))
+- `autotype`: `['user', 'pass']`
+- `autotype-1`: `['pass']`
+- `autotype-2`: `['user']`
