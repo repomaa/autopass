@@ -17,17 +17,10 @@ class Entry
     return if autotype_values(index).empty?
     focus_window!
     autotype_values(index)[0..-2].each do |value|
-      IO.popen('xdotool -', 'w+') do |io|
-        io.puts("type --clearmodifiers #{Shellwords.escape(value)}")
-      end
+      `xdotool type #{Shellwords.escape(value)}`
       `xdotool key Tab`
     end
-    IO.popen('xdotool -', 'w+') do |io|
-      io.puts(
-        'type --clearmodifiers '\
-        "#{Shellwords.escape(autotype_values(index).last)}"
-      )
-    end
+    `xdotool type #{Shellwords.escape(autotype_values(index).last)}`
   end
 
   def autotype_values(index)
