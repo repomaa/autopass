@@ -98,7 +98,7 @@ class PassBackend
 
   def entry_from(file)
     name = file.sub(/\.gpg$/, '')
-    content = `pass show #{name}`
+    content = `pass show #{Shellwords.escape(name)}`
     pass = content.lines.first.chomp
     yaml = content.lines[1..-1].join
     Entry.new(
