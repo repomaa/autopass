@@ -30,7 +30,7 @@ class Entry
            when 2 then attributes['autotype-2'] || %(user)
            else attributes["autotype-#{index}"] || []
            end
-    attributes.values_at(*keys)
+    attributes.values_at(*keys).compact
   end
 
   def focus_window!
@@ -100,10 +100,11 @@ class PassBackend
     name = file.sub(/\.gpg$/, '')
     content = `pass show #{Shellwords.escape(name)}`
     pass = content.lines.first.chomp
-    yaml = content.lines[1..-1].join
+    yaml = (content.lines[1..-1] || []).join
+    metadata = YAML.load(yaml) || {}
     Entry.new(
       File.basename(name),
-      YAML.load(yaml).merge('pass' => pass)
+      metadata.merge('pass' => pass)
     )
   end
 
