@@ -10,6 +10,7 @@ A rofi frontend for pass
 - allows any amount of additional properties which can be used in autotype
 - displays entries that are most likely to match currently focused window first
 - uses encrypted cache to store pass entries in a single file for fast startup
+- OTP (one-time-password) generation (install the ruby gem `rotp` for this)
 
 ## Installation
 
@@ -37,6 +38,7 @@ Copy autopass from this repo somewhere in your path.
 - Press return for autotype
 - Press Alt+1 for autotype-1
 - Press Alt+2 for autotype-2
+- Press Alt+3 for autotype-3
 - etc
 - Press Alt+p to copy pass to clipboard
 - Press Alt+u to copy user to clipboard
@@ -55,21 +57,30 @@ user: username
 some_other_property: some value
 autotype:
 	- user
+	- $tab
 	- some_other_property
+	- $tab
 	- pass
+	- $tab
+	- $otp
 autotype-1:
 	- pass
 autotype-2:
 	- user
 window: some site.*- Chromium
+otp_secret: my_one_time_password_secret
 ```
 
 You can write any kind of key value pairs here as long as it's valid yaml.
-Only and `autotype`, `autotype-{1-7}`, `window` have special meanings.
+Only and `autotype`, `autotype-{1-7}`, `window` and `otp_secret` have special
+meanings. `$tab` hits - you guessed it - the tab key, `$otp` types the current
+time based one time password, for this you need to set `otp_secret` for this
+entry.
 
 ### Defaults:
 
 - `window`: name of the entry (without parent group(s))
-- `autotype`: `['user', 'pass']`
+- `autotype`: `['user', '$tab', pass']`
 - `autotype-1`: `['pass']`
 - `autotype-2`: `['user']`
+- `autotype-3`: `['$otp']`

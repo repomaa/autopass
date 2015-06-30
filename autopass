@@ -5,6 +5,13 @@ require 'fileutils'
 require 'shellwords'
 require 'digest/sha2'
 
+begin
+  require 'rotp'
+  HAS_OTP = true
+rescue LoadError
+  HAS_OTP = false
+end
+
 class Entry
   attr_reader :name, :attributes
 
@@ -16,21 +23,42 @@ class Entry
   def autotype!(index = 0)
     return if autotype_values(index).empty?
     focus_window!
-    autotype_values(index)[0..-2].each do |value|
-      `xdotool type #{Shellwords.escape(value)}`
-      `xdotool key Tab`
+    autotype_values(index).each do |value|
+      case value
+      when '$tab' then `xdotool key Tab`
+      when '$otp' then `xdotool type #{Shellwords.escape(otp)}`
+      else `xdotool type #{Shellwords.escape(value)}`
+      end
     end
-    `xdotool type #{Shellwords.escape(autotype_values(index).last)}`
+  end
+
+  def otp
+    unless HAS_OTP
+      $stderr.puts("Couldn't require rotp. Install it with `gem install rotp`")
+      exit 1
+    end
+    unless attributes['otp_secret']
+      $stderr.puts([
+        'No OTP secret found for this entry.',
+        'Make sure your entry contains an attribute `otp_secret` like the following:',
+        'otp_secret: your_otp_secret'
+      ])
+      exit 1
+    end
+    ROTP::TOTP.new(attributes['otp_secret']).now
   end
 
   def autotype_values(index)
     keys = case index
-           when 0 then attributes['autotype'] || %w(user pass)
-           when 1 then attributes['autotype-1'] || %(pass)
-           when 2 then attributes['autotype-2'] || %(user)
+           when 0 then attributes['autotype'] || %w(user $tab pass)
+           when 1 then attributes['autotype-1'] || %w(pass)
+           when 2 then attributes['autotype-2'] || %w(user)
+           when 3 then attributes['autotype-3'] || %w($otp)
            else attributes["autotype-#{index}"] || []
            end
-    attributes.values_at(*keys).compact
+    keys.map do |key|
+      key.start_with?('$') ? key : attributes[key]
+    end.compact
   end
 
   def focus_window!
