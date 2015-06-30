@@ -101,7 +101,13 @@ class PassBackend
     content = `pass show #{Shellwords.escape(name)}`
     pass = content.lines.first.chomp
     yaml = (content.lines[1..-1] || []).join
-    metadata = YAML.load(yaml) || {}
+    begin
+      metadata = YAML.load(yaml) || {}
+    rescue Psych::SyntaxError => e
+      $stderr.puts "Failed parsing yaml of entry '#{name}':"
+      $stderr.puts yaml
+      $stderr.puts e.message
+    end
     Entry.new(
       File.basename(name),
       metadata.merge('pass' => pass)
