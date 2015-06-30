@@ -58,7 +58,7 @@ class Entry
            else attributes["autotype-#{index}"] || []
            end
     keys.map do |key|
-      key.start_with?('$') ? key : attributes[key]
+      key.is_a?(Symbol) ? key : attributes[key]
     end.compact
   end
 
