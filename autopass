@@ -12,6 +12,22 @@ rescue LoadError
   HAS_OTP = false
 end
 
+config_dir = ENV['XDG_CONFIG_HOME'] || "#{ENV['HOME']}/.config"
+config_file = File.join(config_dir, 'autopass', 'config.yml')
+unless File.exist?(config_file)
+  FileUtils.mkdir_p(File.dirname(config_file))
+  File.write config_file, <<EOF
+---
+cache_file: /tmp/autopass.cache
+# cache_key: YOUR_KEY_ID
+EOF
+  puts "Copied example config to #{config_file}"
+  puts 'Please edit and set the gpg key to use for decrypting the cache'
+  exit
+end
+
+CONFIG = YAML.load_file(config_file)
+
 class Entry
   attr_reader :name, :attributes
 
@@ -24,7 +40,7 @@ class Entry
     return if autotype_values(index).empty?
     focus_window!
     autotype_values(index).each do |value|
-      sleep 0.1
+      sleep CONFIG['autotype_delay'] || 0.2
       case value
       when :tab then `xdotool key Tab`
       when :otp then `xdotool type #{Shellwords.escape(otp)}`
@@ -185,23 +201,7 @@ end
 
 focused_window_id = `xdotool getwindowfocus`.chomp.to_i
 focused_window_name = `xdotool getwindowname #{focused_window_id}`
-
-config_dir = ENV['XDG_CONFIG_HOME'] || "#{ENV['HOME']}/.config"
-config_file = File.join(config_dir, 'autopass', 'config.yml')
-unless File.exist?(config_file)
-  FileUtils.mkdir_p(File.dirname(config_file))
-  File.write config_file, <<EOF
----
-cache_file: /tmp/autopass.cache
-# cache_key: YOUR_KEY_ID
-EOF
-  puts "Copied example config to #{config_file}"
-  puts 'Please edit and set the gpg key to use for decrypting the cache'
-  exit
-end
-
-config = YAML.load_file(config_file)
-pass_backend = PassBackend.new(config)
+pass_backend = PassBackend.new(CONFIG)
 
 choice = nil
 
