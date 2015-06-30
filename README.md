@@ -57,12 +57,12 @@ user: username
 some_other_property: some value
 autotype:
 	- user
-	- $tab
+	- :tab
 	- some_other_property
-	- $tab
+	- :tab
 	- pass
-	- $tab
-	- $otp
+	- :tab
+	- :otp
 autotype-1:
 	- pass
 autotype-2:
@@ -73,14 +73,14 @@ otp_secret: my_one_time_password_secret
 
 You can write any kind of key value pairs here as long as it's valid yaml.
 Only and `autotype`, `autotype-{1-7}`, `window` and `otp_secret` have special
-meanings. `$tab` hits - you guessed it - the tab key, `$otp` types the current
+meanings. `:tab` hits - you guessed it - the tab key, `:otp` types the current
 time based one time password, for this you need to set `otp_secret` for this
 entry.
 
 ### Defaults:
 
 - `window`: name of the entry (without parent group(s))
-- `autotype`: `['user', '$tab', pass']`
+- `autotype`: `['user', :tab, pass']`
 - `autotype-1`: `['pass']`
 - `autotype-2`: `['user']`
-- `autotype-3`: `['$otp']`
+- `autotype-3`: `[:otp]`
