@@ -115,11 +115,10 @@ class Entry
 
   def perform_autotype(values)
     values.each do |value|
-      sleep CONFIG['autotype_delay'] || 0.2
       case value
       when :tab then `xdotool key Tab`
-      when :otp then `xdotool type #{Shellwords.escape(otp)}`
-      else `xdotool type #{Shellwords.escape(value)}`
+      when :otp then `xdotool type --clearmodifiers #{Shellwords.escape(otp)}`
+      else `xdotool type --clearmodifiers #{Shellwords.escape(value)}`
       end
     end
   end
