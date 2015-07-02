@@ -52,7 +52,7 @@ class Entry
     tans = attributes['tan'].lines
     loop do
       tan_number = ask_tan_number
-      tan = tans[tan_number]
+      tan = tans[tan_number - 1]
       break if tan
       `notify-send -u critical -t 5000 'No TAN at index #{tan_number}'`
     end
