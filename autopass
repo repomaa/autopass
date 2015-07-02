@@ -39,14 +39,25 @@ class Entry
   def autotype!(index = 0)
     return if autotype_values(index).empty?
     focus_window!
-    autotype_values(index).each do |value|
-      sleep CONFIG['autotype_delay'] || 0.2
-      case value
-      when :tab then `xdotool key Tab`
-      when :otp then `xdotool type #{Shellwords.escape(otp)}`
-      else `xdotool type #{Shellwords.escape(value)}`
-      end
+    perform_autotype(autotype_values(index))
+  end
+
+  def autotype_tan
+    tan = nil
+    unless attributes['tan']
+      `notify-send -u critical -t 5000 'This entry has no tan attribute'`
+      exit
     end
+
+    tans = attributes['tan'].lines
+    loop do
+      tan_number = ask_tan_number
+      tan = tans[tan_number]
+      break if tan
+      `notify-send -u critical -t 5000 'No TAN at index #{tan_number}'`
+    end
+    focus_window!
+    perform_autotype([tan.strip])
   end
 
   def otp
@@ -98,6 +109,33 @@ class Entry
 
   def window_regex
     attributes['window'] || name
+  end
+
+  private
+
+  def perform_autotype(values)
+    values.each do |value|
+      sleep CONFIG['autotype_delay'] || 0.2
+      case value
+      when :tab then `xdotool key Tab`
+      when :otp then `xdotool type #{Shellwords.escape(otp)}`
+      else `xdotool type #{Shellwords.escape(value)}`
+      end
+    end
+  end
+
+  def ask_tan_number
+    number = nil
+    loop do
+      IO.popen('rofi -dmenu -p "TAN number:"', 'w+') do |io|
+        io.close_write
+        number = io.gets
+      end
+      exit if number.nil?
+      break if number.to_i.to_s == number.strip
+      `notify-send -u critical -t 5000 'Please enter a number'`
+    end
+    number.to_i
   end
 end
 
@@ -206,10 +244,11 @@ pass_backend = PassBackend.new(CONFIG)
 choice = nil
 
 IO.popen(
-  'rofi -dmenu -z -kb-custom-8 "Alt+p" -kb-custom-9 "Alt+u" -p Search: '\
+  'rofi -dmenu -z -kb-custom-7 "Alt+t" -kb-custom-8 "Alt+p" -kb-custom-9 "Alt+u" -p Search: '\
   "-mesg 'Alt-{1-7}: Alternative autotypes\n"\
          "Alt-u: Copy username\n"\
-         "Alt-p: Copy password'",
+         "Alt-p: Copy password\n"\
+         "Alt-t: Autotype TAN'",
   'w+'
 ) do |io|
   io.puts(*pass_backend.sorted_entries(focused_window_name).keys)
@@ -241,7 +280,8 @@ end
 
 case return_value
 when 0 then @entry.autotype!
-when 10..16 then @entry.autotype!(return_value - 9)
+when 10..15 then @entry.autotype!(return_value - 9)
+when 16 then @entry.autotype_tan
 when 17 then copy('pass')
 when 18 then copy('user')
 end
