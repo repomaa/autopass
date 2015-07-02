@@ -42,6 +42,7 @@ Copy autopass from this repo somewhere in your path.
 - etc
 - Press Alt+p to copy pass to clipboard
 - Press Alt+u to copy user to clipboard
+- Press Alt+t to autotype a tan from the entry
 
 Copied values are cleared from clipboard after 45 seconds
 
@@ -69,10 +70,15 @@ autotype-2:
 	- user
 window: some site.*- Chromium
 otp_secret: my_one_time_password_secret
+tan: |
+	204194
+	294922
+	240581
+# ...
 ```
 
 You can write any kind of key value pairs here as long as it's valid yaml.
-Only and `autotype`, `autotype-{1-7}`, `window` and `otp_secret` have special
+Only and `autotype`, `autotype-{1-7}`, `window`, `otp_secret` and `tan` have special
 meanings. `:tab` hits - you guessed it - the tab key, `:otp` types the current
 time based one time password, for this you need to set `otp_secret` for this
 entry.
