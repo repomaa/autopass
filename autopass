@@ -140,9 +140,9 @@ end
 
 class PassBackend
   DEFAULT_OPTIONS = {
-    'cache_file' => '/tmp/getpw_cache.gpg'
+    'cache_file' => '/tmp/getpw_cache.gpg',
+    'password_store' => "#{ENV['HOME']}/.password-store"
   }
-  PASS_STORE = "#{ENV['HOME']}/.password-store"
 
   def initialize(options = {})
     @options = DEFAULT_OPTIONS.merge(options)
@@ -198,7 +198,7 @@ class PassBackend
 
   def files
     result = nil
-    FileUtils.cd(PASS_STORE) do
+    FileUtils.cd(@options['password_store']) do
       result = Dir['**/*.gpg']
     end
     result
@@ -219,7 +219,7 @@ class PassBackend
 
   def checksums
     result = nil
-    FileUtils.cd(PASS_STORE) do
+    FileUtils.cd(@options['password_store']) do
       result = Hash[
         files.map { |file| [file, Digest::SHA512.file(file).hexdigest] }
       ]
