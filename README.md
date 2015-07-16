@@ -86,7 +86,12 @@ entry.
 ### Defaults:
 
 - `window`: name of the entry (without parent group(s))
-- `autotype`: `['user', :tab, pass']`
+- `autotype`: `['user', :tab, 'pass']`
 - `autotype-1`: `['pass']`
 - `autotype-2`: `['user']`
 - `autotype-3`: `[:otp]`
+
+You can define global fallbacks for `autotype` and `autotype-{1-7}` in the
+config file located in `$XDG_CONFIG_HOME/autopass`. You could override the
+default behavior of `autotype-1` and `autotype-2` for example to be reversed:
+`autotype-1: [user]`, `autotype-2: [pass]`.
