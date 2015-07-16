@@ -56,18 +56,10 @@ my_super_secret_password
 ---
 user: username
 some_other_property: some value
-autotype:
-	- user
-	- :tab
-	- some_other_property
-	- :tab
-	- pass
-	- :tab
-	- :otp
-autotype-1:
-	- pass
-autotype-2:
-	- user
+autotype: [user, :tab, some_other_property, :tab, pass, :tab, :otp]
+autotype-1: [user]
+autotype-2: [pass]
+autotype-3: user some_other_property :tab pass # this is also ok
 window: some site.*- Chromium
 otp_secret: my_one_time_password_secret
 tan: |
@@ -86,9 +78,9 @@ entry.
 ### Defaults:
 
 - `window`: name of the entry (without parent group(s))
-- `autotype`: `['user', :tab, 'pass']`
-- `autotype-1`: `['pass']`
-- `autotype-2`: `['user']`
+- `autotype`: `[user, :tab, pass]`
+- `autotype-1`: `[pass]`
+- `autotype-2`: `[user]`
 - `autotype-3`: `[:otp]`
 
 You can define global fallbacks for `autotype` and `autotype-{1-7}` in the

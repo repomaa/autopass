@@ -77,15 +77,20 @@ class Entry
   end
 
   def autotype_values(index)
+    password_key = CONFIG['password_key'] || 'pass'
+    username_key = CONFIG['username_key'] || 'user'
     keys = case index
-           when 0 then attributes['autotype'] || CONFIG['autotype'] || ['user', :tab, 'pass']
-           when 1 then attributes['autotype-1'] || CONFIG['autotype-1'] || %w(pass)
-           when 2 then attributes['autotype-2'] || CONFIG['autotype-2'] || %w(user)
-           when 3 then attributes['autotype-3'] || CONFIG['autotype-3'] || %i(otp)
+           when 0
+             autotype_key = CONFIG['autotype_key'] || 'autotype'
+             attributes[autotype_key] || CONFIG[autotype_key] || [username_key, ':tab', password_key]
+           when 1 then attributes['autotype-1'] || CONFIG['autotype-1'] || [password_key]
+           when 2 then attributes['autotype-2'] || CONFIG['autotype-2'] || [username_key]
+           when 3 then attributes['autotype-3'] || CONFIG['autotype-3'] || %w(:otp)
            else attributes["autotype-#{index}"] || CONFIG["autotype-#{index}"] || []
            end
+    keys = keys.split(/\s+/) if keys.is_a?(String)
     keys.map do |key|
-      key.is_a?(Symbol) ? key : attributes[key]
+      key[0] == ':' ? key : attributes[key]
     end.compact
   end
 
@@ -116,8 +121,8 @@ class Entry
   def perform_autotype(values)
     values.each do |value|
       case value
-      when :tab then `xdotool key Tab`
-      when :otp then `xdotool type --clearmodifiers #{Shellwords.escape(otp)}`
+      when ':tab' then `xdotool key Tab`
+      when ':otp' then `xdotool type --clearmodifiers #{Shellwords.escape(otp)}`
       else `xdotool type --clearmodifiers #{Shellwords.escape(value)}`
       end
     end
@@ -190,9 +195,10 @@ class PassBackend
       $stderr.puts yaml
       $stderr.puts e.message
     end
+    password_key = CONFIG['password_key'] || 'pass'
     Entry.new(
       File.basename(name),
-      metadata.merge('pass' => pass)
+      metadata.merge(password_key => pass)
     )
   end
 
@@ -281,6 +287,6 @@ case return_value
 when 0 then @entry.autotype!
 when 10..15 then @entry.autotype!(return_value - 9)
 when 16 then @entry.autotype_tan
-when 17 then copy('pass')
-when 18 then copy('user')
+when 17 then copy(CONFIG['password_key'] || 'pass')
+when 18 then copy(CONFIG['username_key'] || 'user')
 end
