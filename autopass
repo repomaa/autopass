@@ -253,7 +253,7 @@ pass_backend = PassBackend.new(CONFIG)
 choice = nil
 
 IO.popen(
-  'rofi -dmenu -z -kb-custom-7 "Alt+t" -kb-custom-8 "Alt+p" -kb-custom-9 "Alt+u" -p Search: '\
+  'rofi -dmenu -i -z -kb-custom-7 "Alt+t" -kb-custom-8 "Alt+p" -kb-custom-9 "Alt+u" -p Search: '\
   "-mesg 'Alt-{1-7}: Alternative autotypes\n"\
          "Alt-u: Copy username\n"\
          "Alt-p: Copy password\n"\
