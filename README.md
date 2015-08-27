@@ -56,7 +56,7 @@ my_super_secret_password
 ---
 user: username
 some_other_property: some value
-autotype: [user, :tab, some_other_property, :tab, pass, :tab, :otp]
+autotype: [user, ':tab', some_other_property, ':tab', pass, ':tab', ':otp']
 autotype_1: [user]
 autotype_2: [pass]
 autotype_3: user some_other_property :tab pass # this is also ok
@@ -70,18 +70,18 @@ tan: |
 ```
 
 You can write any kind of key value pairs here as long as it's valid yaml.
-Only and `autotype`, `autotype_{1-7}`, `window`, `otp_secret` and `tan` have special
-meanings. `:tab` hits - you guessed it - the tab key, `:otp` types the current
-time based one time password, for this you need to set `otp_secret` for this
-entry.
+Only and `autotype`, `autotype_{1-7}`, `window`, `otp_secret` and `tan` have
+special meanings. `':tab'` hits - you guessed it - the tab key, `':otp'` types
+the current time based one time password, for this you need to set `otp_secret`
+for this entry.
 
 ### Defaults:
 
 - `window`: name of the entry (without parent group(s))
-- `autotype`: `[user, :tab, pass]`
+- `autotype`: `[user, ':tab', pass]`
 - `autotype_1`: `[pass]`
 - `autotype_2`: `[user]`
-- `autotype_3`: `[:otp]`
+- `autotype_3`: `[':otp']`
 
 You can define global fallbacks for `autotype` and `autotype_{1-7}` in the
 config file located in `$XDG_CONFIG_HOME/autopass`. You could override the
