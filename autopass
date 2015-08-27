@@ -243,12 +243,20 @@ class PassBackend
       $stderr.puts "Failed parsing yaml of entry '#{name}':"
       $stderr.puts yaml
       $stderr.puts e.message
+      metadata.error = true
+      metadata.error_message = e.message
     end
     password_key = CONFIG.password_key || 'pass'
-    puts metadata
+    begin
+      metadata.merge!(password_key => pass)
+    rescue NoMethodError => e
+      metadata = OpenStruct.new(error: true)
+      metadata.error_message = e.message
+    end
+
     Entry.new(
       File.basename(name),
-      metadata.merge(password_key => pass)
+      metadata
     )
   end
 
@@ -298,15 +306,27 @@ pass_backend = PassBackend.new
 
 choice = nil
 
-IO.popen(
-  'rofi -dmenu -i -z -kb-custom-7 "Alt+t" -kb-custom-8 "Alt+p" -kb-custom-9 "Alt+u" -p Search: '\
-  "-mesg 'Alt-{1-7}: Alternative autotypes\n"\
-         "Alt-u: Copy username\n"\
-         "Alt-p: Copy password\n"\
-         "Alt-t: Autotype TAN'",
-  'w+'
-) do |io|
-  io.puts(*pass_backend.sorted_entries(focused_window_name).keys)
+sorted_entries = pass_backend.sorted_entries(focused_window_name)
+errorneus_entry_indices = sorted_entries.each_with_index.reduce([]) do |result, ((_, entry), i)|
+  entry.attributes.error == true ? result << i : result
+end
+
+rofi_args = %w(
+  -dmenu -i -z -kb-custom-7 alt+t -kb-custom-8 Alt+p
+  -kb-custom-9 Alt+u -p Search:
+  -mesg
+)
+rofi_args << "Alt-{1-7}: Alternative autotypes\n"\
+             "Alt-u: Copy username\n"\
+             "Alt-p: Copy password\n"\
+             'Alt-t: Autotype TAN'
+
+unless errorneus_entry_indices.empty?
+  rofi_args.concat(['-u', errorneus_entry_indices.join(',')])
+end
+
+IO.popen(['rofi', *rofi_args], 'w+') do |io|
+  io.puts(*sorted_entries.keys)
   io.close_write
   choice = io.gets
   exit if choice.nil?
@@ -315,6 +335,10 @@ end
 return_value = $?.exitstatus
 
 @entry = pass_backend.entries[choice.chomp]
+if @entry.attributes.error == true
+  system('rofi', '-e', @entry.attributes.error_message)
+  exit 1
+end
 
 def copy(attribute)
   clear_clip_pidfile = '/tmp/autopass-clear-clip.pid'
