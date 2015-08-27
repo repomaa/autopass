@@ -1,13 +1,13 @@
 # Maintainer: Joakim Reinert <mail+aur@jreinert.com>
 
 pkgname=autopass-git
-pkgver=0.r2.0ac233a
-pkgrel=3
+pkgver=0.r39.3b1d176
+pkgrel=1
 pkgdesc='a rofi frontend for pass'
 arch=(any)
 url='https://github.com/jreinert/autopass'
 licence=('MIT')
-depends=(ruby pass rofi xdotool xorg-xwininfo libnotify xclip)
+depends=(ruby pass rofi-git xdotool xorg-xwininfo libnotify xclip)
 makedepends=(git)
 
 source=("${pkgname}::git+https://github.com/jreinert/autopass.git")
