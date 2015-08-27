@@ -36,9 +36,9 @@ Copy autopass from this repo somewhere in your path.
 - run `autopass`
 - Highlight an entry either by fuzzy search or with arrow keys
 - Press return for autotype
-- Press Alt+1 for autotype-1
-- Press Alt+2 for autotype-2
-- Press Alt+3 for autotype-3
+- Press Alt+1 for autotype_1
+- Press Alt+2 for autotype_2
+- Press Alt+3 for autotype_3
 - etc
 - Press Alt+p to copy pass to clipboard
 - Press Alt+u to copy user to clipboard
@@ -57,9 +57,9 @@ my_super_secret_password
 user: username
 some_other_property: some value
 autotype: [user, :tab, some_other_property, :tab, pass, :tab, :otp]
-autotype-1: [user]
-autotype-2: [pass]
-autotype-3: user some_other_property :tab pass # this is also ok
+autotype_1: [user]
+autotype_2: [pass]
+autotype_3: user some_other_property :tab pass # this is also ok
 window: some site.*- Chromium
 otp_secret: my_one_time_password_secret
 tan: |
@@ -70,7 +70,7 @@ tan: |
 ```
 
 You can write any kind of key value pairs here as long as it's valid yaml.
-Only and `autotype`, `autotype-{1-7}`, `window`, `otp_secret` and `tan` have special
+Only and `autotype`, `autotype_{1-7}`, `window`, `otp_secret` and `tan` have special
 meanings. `:tab` hits - you guessed it - the tab key, `:otp` types the current
 time based one time password, for this you need to set `otp_secret` for this
 entry.
@@ -79,14 +79,14 @@ entry.
 
 - `window`: name of the entry (without parent group(s))
 - `autotype`: `[user, :tab, pass]`
-- `autotype-1`: `[pass]`
-- `autotype-2`: `[user]`
-- `autotype-3`: `[:otp]`
+- `autotype_1`: `[pass]`
+- `autotype_2`: `[user]`
+- `autotype_3`: `[:otp]`
 
-You can define global fallbacks for `autotype` and `autotype-{1-7}` in the
+You can define global fallbacks for `autotype` and `autotype_{1-7}` in the
 config file located in `$XDG_CONFIG_HOME/autopass`. You could override the
-default behavior of `autotype-1` and `autotype-2` for example to be reversed:
-`autotype-1: [user]`, `autotype-2: [pass]`.
+default behavior of `autotype_1` and `autotype_2` for example to be reversed:
+`autotype_1: [user]`, `autotype_2: [pass]`.
 
 Furthermore you can set keys to use for looking up the custom autotype sequence
 `autotype_key: autotype`, username `username_key: user` and password

@@ -4,6 +4,7 @@ require 'yaml'
 require 'fileutils'
 require 'shellwords'
 require 'digest/sha2'
+require 'ostruct'
 
 begin
   require 'rotp'
@@ -18,7 +19,12 @@ unless File.exist?(config_file)
   FileUtils.mkdir_p(File.dirname(config_file))
   File.write config_file, <<EOF
 ---
-cache_file: /tmp/autopass.cache
+# you can insert any environment variable inside %{} for it to be replaced by
+# the value of that variable. If it needs to be at the beginning of the string
+# you have to escape it (e.g. `foo: %{BAR}` will raise an error, `foo: '%{BAR}'`
+# will work though)
+
+cache_file: /tmp/autopass-%{USER}.cache
 # cache_key: YOUR_KEY_ID
 EOF
   puts "Copied example config to #{config_file}"
@@ -26,12 +32,36 @@ EOF
   exit
 end
 
-CONFIG = YAML.load_file(config_file)
+SYM_ENV = Hash[ENV.map { |var, value| [var.to_sym, value] }]
+
+def expand_config(item)
+  case item
+  when Hash
+    ostruct = OpenStruct.new
+    item.each { |key, value| ostruct[key] = expand_config(value) }
+    ostruct
+  when Array then item.map(&method(:expand_config))
+  when String then item % SYM_ENV
+  else item
+  end
+end
+
+CONFIG = expand_config(YAML.load_file(config_file))
+
+class OpenStruct
+  def merge(other)
+    OpenStruct.new(to_h.merge(other.to_h))
+  end
+
+  def reverse_merge(other)
+    OpenStruct.new(other.to_h.merge(to_h))
+  end
+end
 
 class Entry
   attr_reader :name, :attributes
 
-  def initialize(name, attributes = {})
+  def initialize(name, attributes = OpenStruct.new)
     @name = name
     @attributes = attributes
   end
@@ -44,12 +74,12 @@ class Entry
 
   def autotype_tan
     tan = nil
-    unless attributes['tan']
+    unless attributes.tan
       `notify-send -u critical -t 5000 'This entry has no tan attribute'`
       exit
     end
 
-    tans = attributes['tan'].lines
+    tans = attributes.tan.lines
     loop do
       tan_number = ask_tan_number
       tan = tans[tan_number - 1]
@@ -65,7 +95,7 @@ class Entry
       $stderr.puts("Couldn't require rotp. Install it with `gem install rotp`")
       exit 1
     end
-    unless attributes['otp_secret']
+    unless attributes.otp_secret
       $stderr.puts([
         'No OTP secret found for this entry.',
         'Make sure your entry contains an attribute `otp_secret` like the following:',
@@ -73,20 +103,20 @@ class Entry
       ])
       exit 1
     end
-    ROTP::TOTP.new(attributes['otp_secret']).now
+    ROTP::TOTP.new(attributes.otp_secret).now
   end
 
   def autotype_values(index)
-    password_key = CONFIG['password_key'] || 'pass'
-    username_key = CONFIG['username_key'] || 'user'
+    password_key = CONFIG.password_key || 'pass'
+    username_key = CONFIG.username_key || 'user'
     keys = case index
            when 0
-             autotype_key = CONFIG['autotype_key'] || 'autotype'
+             autotype_key = CONFIG.autotype_key || 'autotype'
              attributes[autotype_key] || CONFIG[autotype_key] || [username_key, ':tab', password_key]
-           when 1 then attributes['autotype-1'] || CONFIG['autotype-1'] || [password_key]
-           when 2 then attributes['autotype-2'] || CONFIG['autotype-2'] || [username_key]
-           when 3 then attributes['autotype-3'] || CONFIG['autotype-3'] || %w(:otp)
-           else attributes["autotype-#{index}"] || CONFIG["autotype-#{index}"] || []
+           when 1 then attributes.autotype_1 || CONFIG.autotype_1 || [password_key]
+           when 2 then attributes.autotype_2 || CONFIG.autotype_2 || [username_key]
+           when 3 then attributes.autotype_3 || CONFIG.autotype_3 || %w(:otp)
+           else attributes[:"autotype_#{index}"] || CONFIG[:"autotype_#{index}"] || []
            end
     keys = keys.split(/\s+/) if keys.is_a?(String)
     keys.map do |key|
@@ -109,11 +139,11 @@ class Entry
   end
 
   def match(window_name)
-    window_name.match(/#{attributes['window'] || name}/i)
+    window_name.match(/#{attributes.window || name}/i)
   end
 
   def window_regex
-    attributes['window'] || name
+    attributes.window || name
   end
 
   private
@@ -148,14 +178,14 @@ class Entry
 end
 
 class PassBackend
-  DEFAULT_OPTIONS = {
-    'cache_file' => '/tmp/getpw_cache.gpg',
-    'password_store' => "#{ENV['HOME']}/.password-store"
-  }
+  DEFAULT_OPTIONS = expand_config(
+    cache_file: '/tmp/getpw_cache.gpg',
+    password_store: '%{HOME}/.password-store'
+  )
 
   def initialize(options = {})
-    @options = DEFAULT_OPTIONS.merge(options)
-    fail('cache_key option not defined') unless @options['cache_key']
+    @options = options.reverse_merge(DEFAULT_OPTIONS)
+    fail('cache_key option not defined') unless @options.cache_key
     init_cache
     @needs_saving = false
     update_cache
@@ -178,12 +208,15 @@ class PassBackend
   private
 
   def save_cache
-    File.delete(@options['cache_file']) if File.exist?(@options['cache_file'])
+    File.delete(@options.cache_file) if File.exist?(@options.cache_file)
     gpg_cmd = 'gpg -eq --batch -r '\
-              "#{@options['cache_key']} -o #{@options['cache_file']}"
+              "#{@options.cache_key}"
     IO.popen(gpg_cmd, 'w+') do |io|
       io.puts(Marshal.dump(@cache))
       io.close_write
+      File.open(@options.cache_file, 'wb+', perm: 0600) do |f|
+        f.write(io.read)
+      end
     end
   end
 
@@ -193,13 +226,14 @@ class PassBackend
     pass = content.lines.first.chomp
     yaml = (content.lines[1..-1] || []).join
     begin
-      metadata = YAML.load(yaml) || {}
+      metadata = expand_config(YAML.load(yaml) || {})
     rescue Psych::SyntaxError => e
       $stderr.puts "Failed parsing yaml of entry '#{name}':"
       $stderr.puts yaml
       $stderr.puts e.message
     end
-    password_key = CONFIG['password_key'] || 'pass'
+    password_key = CONFIG.password_key || 'pass'
+    puts metadata
     Entry.new(
       File.basename(name),
       metadata.merge(password_key => pass)
@@ -208,7 +242,7 @@ class PassBackend
 
   def files
     result = nil
-    FileUtils.cd(@options['password_store']) do
+    FileUtils.cd(@options.password_store) do
       result = Dir['**/*.gpg']
     end
     result
@@ -229,7 +263,7 @@ class PassBackend
 
   def checksums
     result = nil
-    FileUtils.cd(@options['password_store']) do
+    FileUtils.cd(@options.password_store) do
       result = Hash[
         files.map { |file| [file, Digest::SHA512.file(file).hexdigest] }
       ]
@@ -238,8 +272,8 @@ class PassBackend
   end
 
   def init_cache
-    if File.exist?(@options['cache_file'])
-      @cache = Marshal.load(`gpg -dq --batch #{@options['cache_file']}`)
+    if File.exist?(@options.cache_file)
+      @cache = Marshal.load(`gpg -dq --batch #{@options.cache_file}`)
     else
       @cache = { checksums: {}, entries: {} }
     end
@@ -291,6 +325,6 @@ case return_value
 when 0 then @entry.autotype!
 when 10..15 then @entry.autotype!(return_value - 9)
 when 16 then @entry.autotype_tan
-when 17 then copy(CONFIG['password_key'] || 'pass')
-when 18 then copy(CONFIG['username_key'] || 'user')
+when 17 then copy(CONFIG.password_key || 'pass')
+when 18 then copy(CONFIG.username_key || 'user')
 end
