@@ -99,11 +99,13 @@ DEFAULT_CONFIG = expand_config(
 CONFIG = expand_config(YAML.load_file(config_file))
 CONFIG.reverse_merge!(DEFAULT_CONFIG)
 
-puts CONFIG
-
 if ARGV[0] == 'clear-cache'
   File.delete(CONFIG.cache_file)
   exit
+end
+
+unless Dir.exist?(CONFIG.password_store)
+  abort('It seems that you havent set up a password store yet. Do so by running `pass init <YOUR_KEY_ID>`')
 end
 
 class Entry
