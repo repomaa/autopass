@@ -144,7 +144,15 @@ class Entry
       output.to_i
     else
       `notify-send 'Please select the target window'`
-      `xwininfo -int`[/(?<=Window id: )\d+/]
+      xwininfo = `xwininfo -int`
+      title = xwininfo.match(/Window id: \d+ "(?<title>.*)"$/)[:title]
+      print "selected window: `#{title}` "
+      IO.popen('xclip', 'w+') do |io|
+        io.write(title)
+        io.close_write
+      end
+      puts 'copied to clipboard'
+      xwininfo[/(?<=Window id: )\d+/]
     end
   end
 
