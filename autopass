@@ -26,6 +26,10 @@ unless File.exist?(config_file)
 
 cache_file: /tmp/autopass-%{USER}.cache
 # cache_key: YOUR_KEY_ID
+# key_bindings:
+#   autotype_tan: Alt+t
+#   copy_username: Alt+u
+#   copy_password: Alt+p
 EOF
   puts "Copied example config to #{config_file}"
   puts 'Please edit and set the gpg key to use for decrypting the cache'
@@ -47,21 +51,55 @@ def expand_config(item)
 end
 
 class OpenStruct
+  def merge!(other)
+    other.each_pair do |key, value|
+      own_value = self[key]
+      self[key] = if value.is_a?(OpenStruct) && own_value.is_a?(OpenStruct)
+                    own_value.merge!(value)
+                  else
+                    value
+                  end
+    end
+    self
+  end
+
   def merge(other)
-    OpenStruct.new(to_h.merge(other.to_h))
+    Marshal.load(Marshal.dump(self)).merge!(other)
+  end
+
+  def reverse_merge!(other)
+    other.each_pair do |key, value|
+      own_value = self[key]
+      self[key] = if value.is_a?(OpenStruct) && own_value.is_a?(OpenStruct)
+                    own_value.reverse_merge!(value)
+                  elsif own_value.nil?
+                    value
+                  else
+                    own_value
+                  end
+    end
+    self
   end
 
   def reverse_merge(other)
-    OpenStruct.new(other.to_h.merge(to_h))
+    Marshal.load(Marshal.dump(self)).reverse_merge!(other)
   end
 end
 
 DEFAULT_CONFIG = expand_config(
   cache_file: '/tmp/getpw_cache.gpg',
-  password_store: '%{HOME}/.password-store'
+  password_store: '%{HOME}/.password-store',
+  key_bindings: {
+    copy_username: 'Alt+u',
+    copy_password: 'Alt+p',
+    autotype_tan: 'Alt+t'
+  }
 )
 
-CONFIG = expand_config(YAML.load_file(config_file)).reverse_merge(DEFAULT_CONFIG)
+CONFIG = expand_config(YAML.load_file(config_file))
+CONFIG.reverse_merge!(DEFAULT_CONFIG)
+
+puts CONFIG
 
 if ARGV[0] == 'clear-cache'
   File.delete(CONFIG.cache_file)
@@ -311,15 +349,15 @@ errorneus_entry_indices = sorted_entries.each_with_index.reduce([]) do |result, 
   entry.attributes.error == true ? result << i : result
 end
 
-rofi_args = %w(
-  -dmenu -i -z -kb-custom-7 alt+t -kb-custom-8 Alt+p
-  -kb-custom-9 Alt+u -p Search:
-  -mesg
-)
-rofi_args << "Alt-{1-7}: Alternative autotypes\n"\
-             "Alt-u: Copy username\n"\
-             "Alt-p: Copy password\n"\
-             'Alt-t: Autotype TAN'
+rofi_args = %w(-dmenu -i -z -p Search)
+rofi_args.concat(['-kb-custom-7', CONFIG.key_bindings.autotype_tan])
+rofi_args.concat(['-kb-custom-8', CONFIG.key_bindings.copy_password])
+rofi_args.concat(['-kb-custom-9', CONFIG.key_bindings.copy_username])
+rofi_args << '-mesg'
+rofi_args << "Alt-{1-6}: Alternative autotypes\n"\
+             "#{CONFIG.key_bindings.copy_username}: Copy username\n"\
+             "#{CONFIG.key_bindings.copy_password}: Alt-p: Copy password\n"\
+             "#{CONFIG.key_bindings.autotype_tan}: Alt-t: Autotype TAN"
 
 unless errorneus_entry_indices.empty?
   rofi_args.concat(['-u', errorneus_entry_indices.join(',')])

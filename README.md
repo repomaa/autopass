@@ -75,6 +75,25 @@ special meanings. `':tab'` hits - you guessed it - the tab key, `':otp'` types
 the current time based one time password, for this you need to set `otp_secret`
 for this entry.
 
+### Config:
+
+Default config file:
+
+```yaml
+---
+# you can insert any environment variable inside %{} for it to be replaced by
+# the value of that variable. If it needs to be at the beginning of the string
+# you have to escape it (e.g. `foo: %{BAR}` will raise an error, `foo: '%{BAR}'`
+# will work though)
+
+cache_file: /tmp/autopass-%{USER}.cache
+# cache_key: YOUR_KEY_ID
+# key_bindings:
+#   autotype_tan: Alt+t
+#   copy_username: Alt+u
+#   copy_password: Alt+p
+```
+
 ### Defaults:
 
 - `window`: name of the entry (without parent group(s))
@@ -90,4 +109,4 @@ default behavior of `autotype_1` and `autotype_2` for example to be reversed:
 
 Furthermore you can set keys to use for looking up the custom autotype sequence
 `autotype_key: autotype`, username `username_key: user` and password
-`password_key: pass` in the config file. 
+`password_key: pass` in the config file.
