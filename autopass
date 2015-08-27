@@ -46,8 +46,6 @@ def expand_config(item)
   end
 end
 
-CONFIG = expand_config(YAML.load_file(config_file))
-
 class OpenStruct
   def merge(other)
     OpenStruct.new(to_h.merge(other.to_h))
@@ -56,6 +54,18 @@ class OpenStruct
   def reverse_merge(other)
     OpenStruct.new(other.to_h.merge(to_h))
   end
+end
+
+DEFAULT_CONFIG = expand_config(
+  cache_file: '/tmp/getpw_cache.gpg',
+  password_store: '%{HOME}/.password-store'
+)
+
+CONFIG = expand_config(YAML.load_file(config_file)).reverse_merge(DEFAULT_CONFIG)
+
+if ARGV[0] == 'clear-cache'
+  File.delete(CONFIG.cache_file)
+  exit
 end
 
 class Entry
@@ -178,14 +188,8 @@ class Entry
 end
 
 class PassBackend
-  DEFAULT_OPTIONS = expand_config(
-    cache_file: '/tmp/getpw_cache.gpg',
-    password_store: '%{HOME}/.password-store'
-  )
-
-  def initialize(options = {})
-    @options = options.reverse_merge(DEFAULT_OPTIONS)
-    fail('cache_key option not defined') unless @options.cache_key
+  def initialize
+    fail('cache_key option not defined') unless CONFIG.cache_key
     init_cache
     @needs_saving = false
     update_cache
@@ -208,13 +212,13 @@ class PassBackend
   private
 
   def save_cache
-    File.delete(@options.cache_file) if File.exist?(@options.cache_file)
+    File.delete(CONFIG.cache_file) if File.exist?(CONFIG.cache_file)
     gpg_cmd = 'gpg -eq --batch -r '\
-              "#{@options.cache_key}"
+              "#{CONFIG.cache_key}"
     IO.popen(gpg_cmd, 'w+') do |io|
       io.puts(Marshal.dump(@cache))
       io.close_write
-      File.open(@options.cache_file, 'wb+', perm: 0600) do |f|
+      File.open(CONFIG.cache_file, 'wb+', perm: 0600) do |f|
         f.write(io.read)
       end
     end
@@ -242,7 +246,7 @@ class PassBackend
 
   def files
     result = nil
-    FileUtils.cd(@options.password_store) do
+    FileUtils.cd(CONFIG.password_store) do
       result = Dir['**/*.gpg']
     end
     result
@@ -263,7 +267,7 @@ class PassBackend
 
   def checksums
     result = nil
-    FileUtils.cd(@options.password_store) do
+    FileUtils.cd(CONFIG.password_store) do
       result = Hash[
         files.map { |file| [file, Digest::SHA512.file(file).hexdigest] }
       ]
@@ -272,8 +276,8 @@ class PassBackend
   end
 
   def init_cache
-    if File.exist?(@options.cache_file)
-      @cache = Marshal.load(`gpg -dq --batch #{@options.cache_file}`)
+    if File.exist?(CONFIG.cache_file)
+      @cache = Marshal.load(`gpg -dq --batch #{CONFIG.cache_file}`)
     else
       @cache = { checksums: {}, entries: {} }
     end
@@ -282,7 +286,7 @@ end
 
 focused_window_id = `xdotool getwindowfocus`.chomp.to_i
 focused_window_name = `xdotool getwindowname #{focused_window_id}`
-pass_backend = PassBackend.new(CONFIG)
+pass_backend = PassBackend.new
 
 choice = nil
 
