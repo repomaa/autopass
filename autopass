@@ -210,6 +210,7 @@ class Entry
     values.each do |value|
       case value
       when ':tab' then `xdotool key Tab`
+      when ':enter' then `xdotool key Return`
       else
         type = value == ':otp' ? otp : value
         IO.popen('xdotool type --clearmodifiers --file -', 'w+') do |io|
@@ -351,15 +352,15 @@ errorneus_entry_indices = sorted_entries.each_with_index.reduce([]) do |result, 
   entry.attributes.error == true ? result << i : result
 end
 
-rofi_args = %w(-dmenu -i -z -p Search)
+rofi_args = %w(-dmenu -i -z -p Search:)
 rofi_args.concat(['-kb-custom-7', CONFIG.key_bindings.autotype_tan])
 rofi_args.concat(['-kb-custom-8', CONFIG.key_bindings.copy_password])
 rofi_args.concat(['-kb-custom-9', CONFIG.key_bindings.copy_username])
 rofi_args << '-mesg'
 rofi_args << "Alt-{1-6}: Alternative autotypes\n"\
              "#{CONFIG.key_bindings.copy_username}: Copy username\n"\
-             "#{CONFIG.key_bindings.copy_password}: Alt-p: Copy password\n"\
-             "#{CONFIG.key_bindings.autotype_tan}: Alt-t: Autotype TAN"
+             "#{CONFIG.key_bindings.copy_password}: Copy password\n"\
+             "#{CONFIG.key_bindings.autotype_tan}: Autotype TAN"
 
 unless errorneus_entry_indices.empty?
   rofi_args.concat(['-u', errorneus_entry_indices.join(',')])

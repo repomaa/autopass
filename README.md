@@ -35,7 +35,7 @@ Copy autopass from this repo somewhere in your path.
 
 - run `autopass`
 - Highlight an entry either by fuzzy search or with arrow keys
-- Press return for autotype
+- Press Enter for autotype
 - Press Alt+1 for autotype_1
 - Press Alt+2 for autotype_2
 - Press Alt+3 for autotype_3
@@ -70,10 +70,10 @@ tan: |
 ```
 
 You can write any kind of key value pairs here as long as it's valid yaml.
-Only and `autotype`, `autotype_{1-7}`, `window`, `otp_secret` and `tan` have
-special meanings. `':tab'` hits - you guessed it - the tab key, `':otp'` types
-the current time based one time password, for this you need to set `otp_secret`
-for this entry.
+The keys `autotype`, `autotype_{1-7}`, `window`, `otp_secret` and `tan` have
+special meanings. `':tab'` hits - you guessed it - the Tab key, `':enter'` hits
+the Enter key, `':otp'` types the current time based one time password.
+Make sure you add `otp_secret` to an entry when using `':otp'`.
 
 ### Config:
 
