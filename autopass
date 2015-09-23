@@ -210,6 +210,7 @@ class Entry
     values.each do |value|
       case value
       when ':tab' then `xdotool key Tab`
+      when ':enter' then `xdotool key Return`
       else
         type = value == ':otp' ? otp : value
         IO.popen('xdotool type --clearmodifiers --file -', 'w+') do |io|
