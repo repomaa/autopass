@@ -110,3 +110,14 @@ default behavior of `autotype_1` and `autotype_2` for example to be reversed:
 Furthermore you can set keys to use for looking up the custom autotype sequence
 `autotype_key: autotype`, username `username_key: user` and password
 `password_key: pass` in the config file.
+
+Some users experience problems with alternative autotypes (using the Alt
+modifier key). It almost certanly is caused by releasing the Alt key only after
+the autotype has already started. Therefor there's now a config option
+`alt_delay` which waits the amount in seconds before starting the autotype for
+alternative autotypes. The value is 0.5 by default.
+
+### Known Problems
+
+xdotool uses the wrong keyboard layout if it is set in `xorg.conf.d` instead of
+using the command `xkbmap`.
