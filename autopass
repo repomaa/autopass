@@ -93,7 +93,7 @@ DEFAULT_CONFIG = expand_config(
     copy_username: 'Alt+u',
     copy_password: 'Alt+p',
     autotype_tan: 'Alt+t'
-  }
+  },
   alt_delay: 0.5
 )
 
