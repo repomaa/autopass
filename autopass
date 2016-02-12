@@ -30,6 +30,7 @@ cache_file: /tmp/autopass-%{USER}.cache
 #   autotype_tan: Alt+t
 #   copy_username: Alt+u
 #   copy_password: Alt+p
+#   open_browser: Alt+o
 EOF
   puts "Copied example config to #{config_file}"
   puts 'Please edit and set the gpg key to use for decrypting the cache'
@@ -97,7 +98,9 @@ DEFAULT_CONFIG = expand_config(
   key_bindings: {
     copy_username: 'Alt+u',
     copy_password: 'Alt+p',
-    autotype_tan: 'Alt+t'
+    autotype_tan: 'Alt+t',
+    open_browser: 'Alt+o',
+    copy_otp: 'Alt+c'
   },
   alt_delay: 0.5
 )
@@ -221,6 +224,14 @@ class Entry
 
   def window_regex
     attributes.window || name
+  end
+
+  def open_url!
+    if attributes.url.to_s.empty?
+      notify('Cannot find URL in entry', :critical)
+    else
+      system(ENV['BROWSER'] || 'xdg-open', attributes.url)
+    end
   end
 
   private
@@ -371,15 +382,18 @@ errorneus_entry_indices = sorted_entries.each_with_index.reduce([]) do |result, 
   entry.attributes.error == true ? result << i : result
 end
 
-rofi_args = %w(-dmenu -i -z -p Search:)
+rofi_args = %w(-dmenu -i -z -p Password:)
 rofi_args.concat(['-kb-custom-7', CONFIG.key_bindings.autotype_tan])
 rofi_args.concat(['-kb-custom-8', CONFIG.key_bindings.copy_password])
 rofi_args.concat(['-kb-custom-9', CONFIG.key_bindings.copy_username])
+rofi_args.concat(['-kb-custom-10', CONFIG.key_bindings.open_browser])
+rofi_args.concat(['-kb-custom-11', CONFIG.key_bindings.copy_otp])
 rofi_args << '-mesg'
-rofi_args << "Alt-{1-6}: Alternative autotypes\n"\
-             "#{CONFIG.key_bindings.copy_username}: Copy username\n"\
-             "#{CONFIG.key_bindings.copy_password}: Copy password\n"\
-             "#{CONFIG.key_bindings.autotype_tan}: Autotype TAN"
+rofi_args << "Alt-1: Autotype #{CONFIG.autotype_1}\t\tAlt-2: Autotype #{CONFIG.autotype_2}\n"\
+             "Alt-3: Autotype #{CONFIG.autotype_3}\t\t\tAlt-{4-6}: Alternative autotypes\n"\
+             "#{CONFIG.key_bindings.copy_username}: Copy username\t\t\t#{CONFIG.key_bindings.copy_password}: Copy password\n"\
+             "#{CONFIG.key_bindings.copy_otp}: Copy OTP-Code\n"\
+             "#{CONFIG.key_bindings.autotype_tan}: Autotype TAN\t\t\t#{CONFIG.key_bindings.open_browser}: Open URL in browser"
 
 unless errorneus_entry_indices.empty?
   rofi_args.concat(['-u', errorneus_entry_indices.join(',')])
@@ -423,4 +437,6 @@ when 10..15 then @entry.autotype!(return_value - 9)
 when 16 then @entry.autotype_tan
 when 17 then copy(CONFIG.password_key || 'pass')
 when 18 then copy(CONFIG.username_key || 'user')
+when 19 then @entry.open_url!
+when 20 then copy(@entry.otp, 10)
 end
