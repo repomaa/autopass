@@ -42,7 +42,9 @@ Copy autopass from this repo somewhere in your path.
 - etc
 - Press Alt+p to copy pass to clipboard
 - Press Alt+u to copy user to clipboard
+- Press Alt+c to copy otp code to clipboard
 - Press Alt+t to autotype a tan from the entry
+- Press Alt+o to open specified URL in your browser
 
 Copied values are cleared from clipboard after 45 seconds
 
@@ -55,6 +57,7 @@ Edit them with `pass edit` and add additional properties in the following syntax
 my_super_secret_password
 ---
 user: username
+url: https://example.com/login
 some_other_property: some value
 autotype: [user, ':tab', some_other_property, ':tab', pass, ':tab', ':otp']
 autotype_1: [user]
@@ -86,12 +89,15 @@ Default config file:
 # you have to escape it (e.g. `foo: %{BAR}` will raise an error, `foo: '%{BAR}'`
 # will work though)
 
+# prompt: 'Search:'
 cache_file: /tmp/autopass-%{USER}.cache
 # cache_key: YOUR_KEY_ID
 # key_bindings:
 #   autotype_tan: Alt+t
 #   copy_username: Alt+u
 #   copy_password: Alt+p
+#   open_browser: Alt+o
+#   copy_otp: 'Alt+c'
 ```
 
 ### Defaults:
