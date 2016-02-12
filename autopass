@@ -5,6 +5,7 @@ require 'fileutils'
 require 'shellwords'
 require 'digest/sha2'
 require 'ostruct'
+require 'optionparser'
 
 begin
   require 'rotp'
@@ -30,6 +31,7 @@ cache_file: /tmp/autopass-%{USER}.cache
 #   autotype_tan: Alt+t
 #   copy_username: Alt+u
 #   copy_password: Alt+p
+#   open_browser: Alt+o
 EOF
   puts "Copied example config to #{config_file}"
   puts 'Please edit and set the gpg key to use for decrypting the cache'
@@ -45,7 +47,12 @@ def expand_config(item)
     item.each { |key, value| ostruct[key] = expand_config(value) }
     ostruct
   when Array then item.map(&method(:expand_config))
-  when String then item % SYM_ENV
+  when String
+    if item =~ /%\{.+\}/
+      item % SYM_ENV
+    else
+      item
+    end
   else item
   end
 end
@@ -87,26 +94,54 @@ class OpenStruct
 end
 
 DEFAULT_CONFIG = expand_config(
+  prompt: 'Search:',
   cache_file: '/tmp/getpw_cache.gpg',
   password_store: '%{HOME}/.password-store',
+  username_key: 'user',
+  password_key: 'pass',
+  autotype_3: ':otp',
   key_bindings: {
     copy_username: 'Alt+u',
     copy_password: 'Alt+p',
-    autotype_tan: 'Alt+t'
+    autotype_tan: 'Alt+t',
+    open_browser: 'Alt+o',
+    copy_otp: 'Alt+c'
   },
   alt_delay: 0.5
 )
 
 CONFIG = expand_config(YAML.load_file(config_file))
 CONFIG.reverse_merge!(DEFAULT_CONFIG)
+CONFIG[:autotype_1] ||= CONFIG[:password_key]
+CONFIG[:autotype_2] ||= CONFIG[:username_key]
 
-if ARGV[0] == 'clear-cache'
-  File.delete(CONFIG.cache_file)
-  exit
-end
+OptionParser.new do |opts|
+  opts.banner = "Usage: #{File.basename(__FILE__)} [OPTIONS]"
+  opts.separator ""
+  opts.separator 'Rofi frontend for pass and copy or autotype your passwords.'
+  opts.separator ""
+  opts.separator "OPTIONS:"
+
+  opts.on('-c', '--clear-cache', "Remove cache file") do
+    if File.exist? CONFIG.cache_file
+      File.delete(CONFIG.cache_file)
+      puts "rm #{CONFIG.cache_file}"
+    end
+    exit
+  end
+
+  opts.on("-h", "--help", "Show this help message") do
+    puts opts
+    exit
+  end
+end.parse!
 
 unless Dir.exist?(CONFIG.password_store)
   abort('It seems that you havent set up a password store yet. Do so by running `pass init <YOUR_KEY_ID>`')
+end
+
+def notify(message, type = :normal, milliseconds = 5000)
+  system('notify-send', '-a', File.basename(__FILE__, '.rb').to_s, '-u', type.to_s, '-t', milliseconds.to_s, message.to_s)
 end
 
 class Entry
@@ -118,16 +153,20 @@ class Entry
   end
 
   def autotype!(index = 0)
-    return if autotype_values(index).empty?
+    keys = autotype_keys(index)
+    if autotype_values(keys).empty?
+      notify("No key '#{keys.join('+')}' found for this entry!", :critical)
+      return
+    end
     sleep CONFIG.alt_delay if index > 0
     focus_window!
-    perform_autotype(autotype_values(index))
+    perform_autotype(autotype_values(keys))
   end
 
   def autotype_tan
     tan = nil
     unless attributes.tan
-      `notify-send -u critical -t 5000 'This entry has no tan attribute'`
+      notify('This entry has no tan attribute', :critical)
       exit
     end
 
@@ -136,7 +175,7 @@ class Entry
       tan_number = ask_tan_number
       tan = tans[tan_number - 1]
       break if tan
-      `notify-send -u critical -t 5000 'No TAN at index #{tan_number}'`
+      notify("No TAN at index #{tan_number}", :critical)
     end
     focus_window!
     perform_autotype([tan.strip])
@@ -145,6 +184,7 @@ class Entry
   def otp
     unless HAS_OTP
       $stderr.puts("Couldn't require rotp. Install it with `gem install rotp`")
+      notify('Couldn\'t require rotp. Install it with `gem install rotp`', :critical)
       exit 1
     end
     unless attributes.otp_secret
@@ -153,27 +193,28 @@ class Entry
         'Make sure your entry contains an attribute `otp_secret` like the following:',
         'otp_secret: your_otp_secret'
       ])
+      notify('No OTP secret found for this entry.', :critical)
       exit 1
     end
     ROTP::TOTP.new(attributes.otp_secret).now
   end
 
-  def autotype_values(index)
-    password_key = CONFIG.password_key || 'pass'
-    username_key = CONFIG.username_key || 'user'
+  def autotype_values(keys)
+    keys.map { |key| key[0] == ':' ? key : attributes[key] }.compact
+  end
+
+  def autotype_keys(index)
     keys = case index
            when 0
              autotype_key = CONFIG.autotype_key || 'autotype'
-             attributes[autotype_key] || CONFIG[autotype_key] || [username_key, ':tab', password_key]
-           when 1 then attributes.autotype_1 || CONFIG.autotype_1 || [password_key]
-           when 2 then attributes.autotype_2 || CONFIG.autotype_2 || [username_key]
-           when 3 then attributes.autotype_3 || CONFIG.autotype_3 || %w(:otp)
+             attributes[autotype_key] || CONFIG[autotype_key] || [CONFIG.username_key, ':tab', CONFIG.password_key]
+           when 1 then attributes.autotype_1 || CONFIG.autotype_1
+           when 2 then attributes.autotype_2 || CONFIG.autotype_2
+           when 3 then attributes.autotype_3 || CONFIG.autotype_3
            else attributes[:"autotype_#{index}"] || CONFIG[:"autotype_#{index}"] || []
            end
     keys = keys.split(/\s+/) if keys.is_a?(String)
-    keys.map do |key|
-      key[0] == ':' ? key : attributes[key]
-    end.compact
+    keys
   end
 
   def focus_window!
@@ -185,7 +226,7 @@ class Entry
     if output.lines.size == 1
       output.to_i
     else
-      `notify-send 'Please select the target window'`
+      notify('Please select the target window')
       xwininfo = `xwininfo -int`
       title = xwininfo.match(/Window id: \d+ "(?<title>.*)"$/)[:title]
       print "selected window: `#{title}` "
@@ -204,6 +245,14 @@ class Entry
 
   def window_regex
     attributes.window || name
+  end
+
+  def open_url!
+    if attributes.url.to_s.empty?
+      notify('Cannot find URL in entry', :critical)
+    else
+      system(ENV['BROWSER'] || 'xdg-open', attributes.url)
+    end
   end
 
   private
@@ -232,7 +281,7 @@ class Entry
       end
       exit if number.nil?
       break if number.to_i.to_s == number.strip
-      `notify-send -u critical -t 5000 'Please enter a number'`
+      notify('Please enter a number')
     end
     number.to_i
   end
@@ -289,9 +338,8 @@ class PassBackend
       metadata.error = true
       metadata.error_message = e.message
     end
-    password_key = CONFIG.password_key || 'pass'
     begin
-      metadata.merge!(password_key => pass)
+      metadata.merge!(CONFIG.password_key => pass)
     rescue NoMethodError => e
       metadata = OpenStruct.new(error: true)
       metadata.error_message = e.message
@@ -354,15 +402,32 @@ errorneus_entry_indices = sorted_entries.each_with_index.reduce([]) do |result, 
   entry.attributes.error == true ? result << i : result
 end
 
-rofi_args = %w(-dmenu -i -z -p Search:)
+rofi_args = %W(-dmenu -i -z -p #{CONFIG.prompt})
 rofi_args.concat(['-kb-custom-7', CONFIG.key_bindings.autotype_tan])
 rofi_args.concat(['-kb-custom-8', CONFIG.key_bindings.copy_password])
 rofi_args.concat(['-kb-custom-9', CONFIG.key_bindings.copy_username])
+rofi_args.concat(['-kb-custom-10', CONFIG.key_bindings.open_browser])
+rofi_args.concat(['-kb-custom-11', CONFIG.key_bindings.copy_otp])
 rofi_args << '-mesg'
-rofi_args << "Alt-{1-6}: Alternative autotypes\n"\
-             "#{CONFIG.key_bindings.copy_username}: Copy username\n"\
-             "#{CONFIG.key_bindings.copy_password}: Copy password\n"\
-             "#{CONFIG.key_bindings.autotype_tan}: Autotype TAN"
+msgs = [
+  "Alt-1: Autotype #{CONFIG.autotype_1}",
+  "Alt-2: Autotype #{CONFIG.autotype_2}",
+  "Alt-3: Autotype #{CONFIG.autotype_3}",
+  "Alt-{4-6}: Alternative autotypes",
+  "#{CONFIG.key_bindings.autotype_tan}: Autotype TAN",
+  "#{CONFIG.key_bindings.copy_password}: Copy password",
+  "#{CONFIG.key_bindings.copy_username}: Copy username",
+  "#{CONFIG.key_bindings.copy_otp}: Copy OTP-Code",
+  "#{CONFIG.key_bindings.open_browser}: Open URL in browser"
+]
+half = (msgs.length / 2.0).ceil
+msgs = msgs.first(half).map.with_index do |msg, index|
+  left = msg.to_s.ljust(40, ' ')
+  right = msgs[half+index]
+  [left, right].join
+end
+rofi_args << msgs.join("\n")
+
 
 unless errorneus_entry_indices.empty?
   rofi_args.concat(['-u', errorneus_entry_indices.join(',')])
@@ -383,7 +448,7 @@ if @entry.attributes.error == true
   exit 1
 end
 
-def copy(attribute)
+def copy(attribute, notification_seconds = 5)
   clear_clip_pidfile = '/tmp/autopass-clear-clip.pid'
   value = @entry.attributes[attribute]
 
@@ -391,7 +456,7 @@ def copy(attribute)
     Process.kill(:INT, File.read(clear_clip_pidfile).to_i)
   end
   IO.popen('xclip', 'w+') { |io| io.print(value) }
-  `notify-send "Copied #{attribute} to clipboard. Clearing in 45 seconds"`
+  notify("Copied #{attribute} to clipboard. Clearing in 45 seconds", :normal, notification_seconds*1000)
   fork do
     File.write(clear_clip_pidfile, Process.pid)
     sleep(45)
@@ -404,6 +469,8 @@ case return_value
 when 0 then @entry.autotype!
 when 10..15 then @entry.autotype!(return_value - 9)
 when 16 then @entry.autotype_tan
-when 17 then copy(CONFIG.password_key || 'pass')
-when 18 then copy(CONFIG.username_key || 'user')
+when 17 then copy(CONFIG.password_key)
+when 18 then copy(CONFIG.username_key)
+when 19 then @entry.open_url!
+when 20 then copy(@entry.otp, 10)
 end
