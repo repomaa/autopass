@@ -114,6 +114,10 @@ unless Dir.exist?(CONFIG.password_store)
   abort('It seems that you havent set up a password store yet. Do so by running `pass init <YOUR_KEY_ID>`')
 end
 
+def notify(message, type = :normal, milliseconds = 5000)
+  system('notify-send', '-a', File.basename(__FILE__, '.rb').to_s, '-u', type.to_s, '-t', milliseconds.to_s, message.to_s)
+end
+
 class Entry
   attr_reader :name, :attributes
 
@@ -123,16 +127,20 @@ class Entry
   end
 
   def autotype!(index = 0)
-    return if autotype_values(index).empty?
+    keys = autotype_keys(index)
+    if autotype_values(keys).empty?
+      notify("No key '#{keys.join('+')}' found for this entry!", :critical)
+      return
+    end
     sleep CONFIG.alt_delay if index > 0
     focus_window!
-    perform_autotype(autotype_values(index))
+    perform_autotype(autotype_values(keys))
   end
 
   def autotype_tan
     tan = nil
     unless attributes.tan
-      `notify-send -u critical -t 5000 'This entry has no tan attribute'`
+      notify('This entry has no tan attribute', :critical)
       exit
     end
 
@@ -141,7 +149,7 @@ class Entry
       tan_number = ask_tan_number
       tan = tans[tan_number - 1]
       break if tan
-      `notify-send -u critical -t 5000 'No TAN at index #{tan_number}'`
+      notify("No TAN at index #{tan_number}", :critical)
     end
     focus_window!
     perform_autotype([tan.strip])
@@ -150,6 +158,7 @@ class Entry
   def otp
     unless HAS_OTP
       $stderr.puts("Couldn't require rotp. Install it with `gem install rotp`")
+      notify('Couldn\'t require rotp. Install it with `gem install rotp`', :critical)
       exit 1
     end
     unless attributes.otp_secret
@@ -158,12 +167,17 @@ class Entry
         'Make sure your entry contains an attribute `otp_secret` like the following:',
         'otp_secret: your_otp_secret'
       ])
+      notify('No OTP secret found for this entry.', :critical)
       exit 1
     end
     ROTP::TOTP.new(attributes.otp_secret).now
   end
 
-  def autotype_values(index)
+  def autotype_values(keys)
+    keys.map { |key| key[0] == ':' ? key : attributes[key] }.compact
+  end
+
+  def autotype_keys(index)
     password_key = CONFIG.password_key || 'pass'
     username_key = CONFIG.username_key || 'user'
     keys = case index
@@ -176,9 +190,7 @@ class Entry
            else attributes[:"autotype_#{index}"] || CONFIG[:"autotype_#{index}"] || []
            end
     keys = keys.split(/\s+/) if keys.is_a?(String)
-    keys.map do |key|
-      key[0] == ':' ? key : attributes[key]
-    end.compact
+    keys
   end
 
   def focus_window!
@@ -190,7 +202,7 @@ class Entry
     if output.lines.size == 1
       output.to_i
     else
-      `notify-send 'Please select the target window'`
+      notify('Please select the target window')
       xwininfo = `xwininfo -int`
       title = xwininfo.match(/Window id: \d+ "(?<title>.*)"$/)[:title]
       print "selected window: `#{title}` "
@@ -237,7 +249,7 @@ class Entry
       end
       exit if number.nil?
       break if number.to_i.to_s == number.strip
-      `notify-send -u critical -t 5000 'Please enter a number'`
+      notify('Please enter a number')
     end
     number.to_i
   end
@@ -388,7 +400,7 @@ if @entry.attributes.error == true
   exit 1
 end
 
-def copy(attribute)
+def copy(attribute, notification_seconds = 5)
   clear_clip_pidfile = '/tmp/autopass-clear-clip.pid'
   value = @entry.attributes[attribute]
 
@@ -396,7 +408,7 @@ def copy(attribute)
     Process.kill(:INT, File.read(clear_clip_pidfile).to_i)
   end
   IO.popen('xclip', 'w+') { |io| io.print(value) }
-  `notify-send "Copied #{attribute} to clipboard. Clearing in 45 seconds"`
+  notify("Copied #{attribute} to clipboard. Clearing in 45 seconds", :normal, notification_seconds*1000)
   fork do
     File.write(clear_clip_pidfile, Process.pid)
     sleep(45)
