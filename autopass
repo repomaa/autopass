@@ -5,6 +5,7 @@ require 'fileutils'
 require 'shellwords'
 require 'digest/sha2'
 require 'ostruct'
+require 'optionparser'
 
 begin
   require 'rotp'
@@ -114,10 +115,26 @@ CONFIG.reverse_merge!(DEFAULT_CONFIG)
 CONFIG[:autotype_1] ||= CONFIG[:password_key]
 CONFIG[:autotype_2] ||= CONFIG[:username_key]
 
-if ARGV[0] == 'clear-cache'
-  File.delete(CONFIG.cache_file)
-  exit
-end
+OptionParser.new do |opts|
+  opts.banner = "Usage: #{File.basename(__FILE__)} [OPTIONS]"
+  opts.separator ""
+  opts.separator 'Rofi frontend for pass and copy or autotype your passwords.'
+  opts.separator ""
+  opts.separator "OPTIONS:"
+
+  opts.on('-c', '--clear-cache', "Remove cache file") do
+    if File.exist? CONFIG.cache_file
+      File.delete(CONFIG.cache_file)
+      puts "rm #{CONFIG.cache_file}"
+    end
+    exit
+  end
+
+  opts.on("-h", "--help", "Show this help message") do
+    puts opts
+    exit
+  end
+end.parse!
 
 unless Dir.exist?(CONFIG.password_store)
   abort('It seems that you havent set up a password store yet. Do so by running `pass init <YOUR_KEY_ID>`')
