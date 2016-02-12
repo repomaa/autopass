@@ -45,7 +45,12 @@ def expand_config(item)
     item.each { |key, value| ostruct[key] = expand_config(value) }
     ostruct
   when Array then item.map(&method(:expand_config))
-  when String then item % SYM_ENV
+  when String
+    if item =~ /%\{.+\}/
+      item % SYM_ENV
+    else
+      item
+    end
   else item
   end
 end
