@@ -95,6 +95,9 @@ end
 DEFAULT_CONFIG = expand_config(
   cache_file: '/tmp/getpw_cache.gpg',
   password_store: '%{HOME}/.password-store',
+  username_key: 'user',
+  password_key: 'pass',
+  autotype_3: ':otp',
   key_bindings: {
     copy_username: 'Alt+u',
     copy_password: 'Alt+p',
@@ -107,6 +110,8 @@ DEFAULT_CONFIG = expand_config(
 
 CONFIG = expand_config(YAML.load_file(config_file))
 CONFIG.reverse_merge!(DEFAULT_CONFIG)
+CONFIG[:autotype_1] ||= CONFIG[:password_key]
+CONFIG[:autotype_2] ||= CONFIG[:username_key]
 
 if ARGV[0] == 'clear-cache'
   File.delete(CONFIG.cache_file)
@@ -181,15 +186,13 @@ class Entry
   end
 
   def autotype_keys(index)
-    password_key = CONFIG.password_key || 'pass'
-    username_key = CONFIG.username_key || 'user'
     keys = case index
            when 0
              autotype_key = CONFIG.autotype_key || 'autotype'
-             attributes[autotype_key] || CONFIG[autotype_key] || [username_key, ':tab', password_key]
-           when 1 then attributes.autotype_1 || CONFIG.autotype_1 || [password_key]
-           when 2 then attributes.autotype_2 || CONFIG.autotype_2 || [username_key]
-           when 3 then attributes.autotype_3 || CONFIG.autotype_3 || %w(:otp)
+             attributes[autotype_key] || CONFIG[autotype_key] || [CONFIG.username_key, ':tab', CONFIG.password_key]
+           when 1 then attributes.autotype_1 || CONFIG.autotype_1
+           when 2 then attributes.autotype_2 || CONFIG.autotype_2
+           when 3 then attributes.autotype_3 || CONFIG.autotype_3
            else attributes[:"autotype_#{index}"] || CONFIG[:"autotype_#{index}"] || []
            end
     keys = keys.split(/\s+/) if keys.is_a?(String)
@@ -317,9 +320,8 @@ class PassBackend
       metadata.error = true
       metadata.error_message = e.message
     end
-    password_key = CONFIG.password_key || 'pass'
     begin
-      metadata.merge!(password_key => pass)
+      metadata.merge!(CONFIG.password_key => pass)
     rescue NoMethodError => e
       metadata = OpenStruct.new(error: true)
       metadata.error_message = e.message
@@ -389,11 +391,25 @@ rofi_args.concat(['-kb-custom-9', CONFIG.key_bindings.copy_username])
 rofi_args.concat(['-kb-custom-10', CONFIG.key_bindings.open_browser])
 rofi_args.concat(['-kb-custom-11', CONFIG.key_bindings.copy_otp])
 rofi_args << '-mesg'
-rofi_args << "Alt-1: Autotype #{CONFIG.autotype_1}\t\tAlt-2: Autotype #{CONFIG.autotype_2}\n"\
-             "Alt-3: Autotype #{CONFIG.autotype_3}\t\t\tAlt-{4-6}: Alternative autotypes\n"\
-             "#{CONFIG.key_bindings.copy_username}: Copy username\t\t\t#{CONFIG.key_bindings.copy_password}: Copy password\n"\
-             "#{CONFIG.key_bindings.copy_otp}: Copy OTP-Code\n"\
-             "#{CONFIG.key_bindings.autotype_tan}: Autotype TAN\t\t\t#{CONFIG.key_bindings.open_browser}: Open URL in browser"
+msgs = [
+  "Alt-1: Autotype #{CONFIG.autotype_1}",
+  "Alt-2: Autotype #{CONFIG.autotype_2}",
+  "Alt-3: Autotype #{CONFIG.autotype_3}",
+  "Alt-{4-6}: Alternative autotypes",
+  "#{CONFIG.key_bindings.autotype_tan}: Autotype TAN",
+  "#{CONFIG.key_bindings.copy_password}: Copy password",
+  "#{CONFIG.key_bindings.copy_username}: Copy username",
+  "#{CONFIG.key_bindings.copy_otp}: Copy OTP-Code",
+  "#{CONFIG.key_bindings.open_browser}: Open URL in browser"
+]
+half = (msgs.length / 2.0).ceil
+msgs = msgs.first(half).map.with_index do |msg, index|
+  left = msg.to_s.ljust(40, ' ')
+  right = msgs[half+index]
+  [left, right].join
+end
+rofi_args << msgs.join("\n")
+
 
 unless errorneus_entry_indices.empty?
   rofi_args.concat(['-u', errorneus_entry_indices.join(',')])
@@ -435,8 +451,8 @@ case return_value
 when 0 then @entry.autotype!
 when 10..15 then @entry.autotype!(return_value - 9)
 when 16 then @entry.autotype_tan
-when 17 then copy(CONFIG.password_key || 'pass')
-when 18 then copy(CONFIG.username_key || 'user')
+when 17 then copy(CONFIG.password_key)
+when 18 then copy(CONFIG.username_key)
 when 19 then @entry.open_url!
 when 20 then copy(@entry.otp, 10)
 end
