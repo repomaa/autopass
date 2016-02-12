@@ -93,6 +93,7 @@ class OpenStruct
 end
 
 DEFAULT_CONFIG = expand_config(
+  prompt: 'Search:',
   cache_file: '/tmp/getpw_cache.gpg',
   password_store: '%{HOME}/.password-store',
   username_key: 'user',
@@ -384,7 +385,7 @@ errorneus_entry_indices = sorted_entries.each_with_index.reduce([]) do |result, 
   entry.attributes.error == true ? result << i : result
 end
 
-rofi_args = %w(-dmenu -i -z -p Password:)
+rofi_args = %W(-dmenu -i -z -p #{CONFIG.prompt})
 rofi_args.concat(['-kb-custom-7', CONFIG.key_bindings.autotype_tan])
 rofi_args.concat(['-kb-custom-8', CONFIG.key_bindings.copy_password])
 rofi_args.concat(['-kb-custom-9', CONFIG.key_bindings.copy_username])
