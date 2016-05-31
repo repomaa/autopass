@@ -134,7 +134,7 @@ end
 class Entry
   attr_reader :name, :attributes
 
-  def initialize(name, attributes = OpenStruct.new)
+  def initialize(name)
     content = `pass show #{Shellwords.escape(name)}`
     pass = content.lines.first.chomp
     yaml = (content.lines[1..-1] || []).join
