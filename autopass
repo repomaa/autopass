@@ -3,7 +3,6 @@
 require 'yaml'
 require 'fileutils'
 require 'shellwords'
-require 'digest/sha2'
 require 'ostruct'
 require 'optionparser'
 
@@ -25,16 +24,13 @@ unless File.exist?(config_file)
 # you have to escape it (e.g. `foo: %{BAR}` will raise an error, `foo: '%{BAR}'`
 # will work though)
 
-cache_file: /tmp/autopass-%{USER}.cache
-# cache_key: YOUR_KEY_ID
 # key_bindings:
 #   autotype_tan: Alt+t
 #   copy_username: Alt+u
 #   copy_password: Alt+p
 #   open_browser: Alt+o
 EOF
-  puts "Copied example config to #{config_file}"
-  puts 'Please edit and set the gpg key to use for decrypting the cache'
+  puts "Copied example config to #{config_file}.  Please edit"
   exit
 end
 
@@ -87,7 +83,6 @@ end
 
 DEFAULT_CONFIG = expand_config(
   prompt: 'Search:',
-  cache_file: '/tmp/getpw_cache.gpg',
   password_store: '%{HOME}/.password-store',
   username_key: 'user',
   password_key: 'pass',
@@ -114,14 +109,6 @@ OptionParser.new do |opts|
   opts.separator ""
   opts.separator "OPTIONS:"
 
-  opts.on('-c', '--clear-cache', "Remove cache file") do
-    if File.exist? CONFIG.cache_file
-      File.delete(CONFIG.cache_file)
-      puts "rm #{CONFIG.cache_file}"
-    end
-    exit
-  end
-
   opts.on("-h", "--help", "Show this help message") do
     puts opts
     exit
@@ -139,9 +126,27 @@ end
 class Entry
   attr_reader :name, :attributes
 
-  def initialize(name, attributes = OpenStruct.new)
+  def initialize(name)
+    content = `pass show #{Shellwords.escape(name)}`
+    pass = content.lines.first.chomp
+    yaml = (content.lines[1..-1] || []).join
+    begin
+      metadata = expand_config(YAML.load(yaml) || {})
+    rescue Psych::SyntaxError => e
+      $stderr.puts "Failed parsing yaml of entry '#{name}':"
+      $stderr.puts yaml
+      $stderr.puts e.message
+      metadata.error = true
+      metadata.error_message = e.message
+    end
+    begin
+      metadata.merge!(CONFIG.password_key => pass)
+    rescue NoMethodError => e
+      metadata = OpenStruct.new(error: true)
+      metadata.error_message = e.message
+    end
     @name = name
-    @attributes = attributes
+    @attributes = metadata
   end
 
   def autotype!(index = 0)
@@ -281,105 +286,18 @@ end
 
 class PassBackend
   def initialize
-    fail('cache_key option not defined') unless CONFIG.cache_key
-    init_cache
-    @needs_saving = false
-    update_cache
-    save_cache if needs_saving?
-  end
-
-  def entries
-    @cache[:entries]
+    @entries = {}
+    FileUtils.cd(CONFIG.password_store) do
+      @entries = Dir['**/*.gpg'].map { |file| file.sub(/\.gpg$/, '') }
+    end
   end
 
   def sorted_entries(focused_window)
-    Hash[
-      entries.sort_by do |name, entry|
-        match = entry.match(focused_window)
-        match ? "\0" * focused_window.sub(match[0], '').size : name
-      end
-    ]
-  end
-
-  private
-
-  def save_cache
-    File.delete(CONFIG.cache_file) if File.exist?(CONFIG.cache_file)
-    gpg_cmd = 'gpg -eq --batch -r '\
-              "#{CONFIG.cache_key}"
-    IO.popen(gpg_cmd, 'w+') do |io|
-      io.puts(Marshal.dump(@cache))
-      io.close_write
-      File.open(CONFIG.cache_file, 'wb+', perm: 0600) do |f|
-        f.write(io.read)
-      end
+    @entries.sort_by do |entry|
+      match = entry.match(focused_window)
+      match ? "\0" * focused_window.sub(match[0], '').size : entry
     end
-  end
-
-  def entry_from(file)
-    name = file.sub(/\.gpg$/, '')
-    content = `pass show #{Shellwords.escape(name)}`
-    pass = content.lines.first.chomp
-    yaml = (content.lines[1..-1] || []).join
-    begin
-      metadata = expand_config(YAML.load(yaml) || {})
-    rescue Psych::SyntaxError => e
-      $stderr.puts "Failed parsing yaml of entry '#{name}':"
-      $stderr.puts yaml
-      $stderr.puts e.message
-      metadata.error = true
-      metadata.error_message = e.message
-    end
-    begin
-      metadata.merge!(CONFIG.password_key => pass)
-    rescue NoMethodError => e
-      metadata = OpenStruct.new(error: true)
-      metadata.error_message = e.message
-    end
-
-    Entry.new(
-      File.basename(name),
-      metadata
-    )
-  end
-
-  def files
-    result = nil
-    FileUtils.cd(CONFIG.password_store) do
-      result = Dir['**/*.gpg']
-    end
-    result
-  end
-
-  def needs_saving?
-    @needs_saving
-  end
-
-  def update_cache
-    checksums.each do |file, checksum|
-      next if @cache[:checksums][file] == checksum
-      @cache[:entries][file.sub(/\.gpg$/, '')] = entry_from(file)
-      @cache[:checksums][file] = checksum
-      @needs_saving = true
-    end
-  end
-
-  def checksums
-    result = nil
-    FileUtils.cd(CONFIG.password_store) do
-      result = Hash[
-        files.map { |file| [file, Digest::SHA512.file(file).hexdigest] }
-      ]
-    end
-    result
-  end
-
-  def init_cache
-    if File.exist?(CONFIG.cache_file)
-      @cache = Marshal.load(`gpg -dq --batch #{CONFIG.cache_file}`)
-    else
-      @cache = { checksums: {}, entries: {} }
-    end
+    @entries
   end
 end
 
@@ -390,9 +308,6 @@ pass_backend = PassBackend.new
 choice = nil
 
 sorted_entries = pass_backend.sorted_entries(focused_window_name)
-errorneus_entry_indices = sorted_entries.each_with_index.reduce([]) do |result, ((_, entry), i)|
-  entry.attributes.error == true ? result << i : result
-end
 
 rofi_args = %W(-dmenu -i -z -p #{CONFIG.prompt})
 rofi_args.concat(['-kb-custom-7', CONFIG.key_bindings.autotype_tan])
@@ -421,12 +336,8 @@ end
 rofi_args << msgs.join("\n")
 
 
-unless errorneus_entry_indices.empty?
-  rofi_args.concat(['-u', errorneus_entry_indices.join(',')])
-end
-
 IO.popen(['rofi', *rofi_args], 'w+') do |io|
-  io.puts(*sorted_entries.keys)
+  io.puts(*sorted_entries)
   io.close_write
   choice = io.gets
   exit if choice.nil?
@@ -434,7 +345,7 @@ end
 
 return_value = $?.exitstatus
 
-@entry = pass_backend.entries[choice.chomp]
+@entry = Entry.new(choice.chomp)
 if @entry.attributes.error == true
   system('rofi', '-e', @entry.attributes.error_message)
   exit 1

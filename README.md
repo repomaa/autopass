@@ -9,7 +9,6 @@ A rofi frontend for pass
 - automatically focuses correct window or asks you to
 - allows any amount of additional properties which can be used in autotype
 - displays entries that are most likely to match currently focused window first
-- uses encrypted cache to store pass entries in a single file for fast startup
 - OTP (one-time-password) generation (install the ruby gem `rotp` for this)
 
 ## Installation
@@ -90,8 +89,6 @@ Default config file:
 # will work though)
 
 # prompt: 'Search:'
-cache_file: /tmp/autopass-%{USER}.cache
-# cache_key: YOUR_KEY_ID
 # key_bindings:
 #   autotype_tan: Alt+t
 #   copy_username: Alt+u
