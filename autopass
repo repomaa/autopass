@@ -25,7 +25,7 @@ unless File.exist?(config_file)
 # you have to escape it (e.g. `foo: %{BAR}` will raise an error, `foo: '%{BAR}'`
 # will work though)
 
-cache_file: /tmp/autopass-%{USER}.cache
+cache_file: '%{HOME}/.cache/autopass/autopass.cache'
 # cache_key: YOUR_KEY_ID
 # key_bindings:
 #   autotype_tan: Alt+t
@@ -87,7 +87,7 @@ end
 
 DEFAULT_CONFIG = expand_config(
   prompt: 'Search:',
-  cache_file: '/tmp/getpw_cache.gpg',
+  cache_file: '%{HOME}/.cache/autopass/autopass.cache',
   password_store: '%{HOME}/.password-store',
   username_key: 'user',
   password_key: 'pass',
@@ -307,6 +307,7 @@ class PassBackend
     File.delete(CONFIG.cache_file) if File.exist?(CONFIG.cache_file)
     gpg_cmd = 'gpg -eq --batch -r '\
               "#{CONFIG.cache_key}"
+    FileUtils.mkdir_p(File.dirname(CONFIG.cache_file))
     IO.popen(gpg_cmd, 'w+') do |io|
       io.puts(Marshal.dump(@cache))
       io.close_write

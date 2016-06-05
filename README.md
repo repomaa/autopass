@@ -90,7 +90,7 @@ Default config file:
 # will work though)
 
 # prompt: 'Search:'
-cache_file: /tmp/autopass-%{USER}.cache
+cache_file: '%{HOME}/.cache/autopass/autopass.cache'
 # cache_key: YOUR_KEY_ID
 # key_bindings:
 #   autotype_tan: Alt+t
