@@ -31,6 +31,11 @@ Copy autopass from this repo somewhere in your path.
 - [xwininfo](http://www.xfree86.org/4.2.0/xwininfo.1.html)
 - [xclip](http://sourceforge.net/projects/xclip/')
 
+Optionally you can install one of the following browser extensions for better autotype. These add your current URL to
+your title (and window title) which can be matched by the URL entry in your password entry.
+- Chrom(e|ium) extension [url-in-title](https://chrome.google.com/webstore/detail/url-in-title/ignpacbgnbnkaiooknalneoeladjnfgb)
+- Firefox extension [add-url-to-window-title](https://addons.mozilla.org/en-US/firefox/addon/add-url-to-window-title/) ([Repository](https://github.com/erichgoldman/add-url-to-window-title))
+
 ## Usage
 
 - run `autopass`
