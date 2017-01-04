@@ -24,7 +24,7 @@ Copy autopass from this repo somewhere in your path.
 
 #### Dependencies:
 
-- [pass](https://github.com/zx2c4/password-store)
+- [pass](https://git.zx2c4.com/password-store)
 - [rofi](https://github.com/DaveDavenport/rofi)
 - [xdotool](http://www.semicomplete.com/projects/xdotool/)
 - [libnotify](https://developer.gnome.org/libnotify)
