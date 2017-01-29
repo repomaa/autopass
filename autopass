@@ -461,7 +461,7 @@ end
 
 def copy(attribute, notification_seconds = 5)
   clear_clip_pidfile = '/tmp/autopass-clear-clip.pid'
-  value = @entry.attributes[attribute]
+  value = attribute == :otp ? @entry.otp : @entry.attributes[attribute]
 
   if File.exist?(clear_clip_pidfile)
     Process.kill(:INT, File.read(clear_clip_pidfile).to_i)
@@ -483,5 +483,5 @@ when 16 then @entry.autotype_tan
 when 17 then copy(CONFIG.password_key)
 when 18 then copy(CONFIG.username_key)
 when 19 then @entry.open_url!
-when 20 then copy(@entry.otp, 10)
+when 20 then copy(:otp, 10)
 end
