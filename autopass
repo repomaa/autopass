@@ -337,29 +337,29 @@ class PassBackend
 
   def entry_from(file)
     name = file.sub(/\.gpg$/, '')
+    pass, yaml = read_entry(name)
+    metadata = parse_metadata(yaml)
+    metadata.merge!(CONFIG.password_key => pass)
+    Entry.new(File.basename(name), metadata)
+  rescue StandardError => e
+    $stderr.puts "Failed parsing entry '#{name}':"
+    $stderr.puts pass, yaml
+    $stderr.puts e.message
+    Entry.new(File.basename(name, error: true))
+  end
+
+  def parse_metadata(yaml)
+    expand_config(YAML.load(yaml) || {})
+  end
+
+  def read_entry(name)
     content = `pass show #{Shellwords.escape(name)}`
+    raise "Pass exited with error when reading from #{name}" unless $?.success?
     pass = content.lines.first.chomp
     yaml = (content.lines[1..-1] || []).join
-    begin
-      metadata = expand_config(YAML.load(yaml) || {})
-    rescue Psych::SyntaxError => e
-      $stderr.puts "Failed parsing yaml of entry '#{name}':"
-      $stderr.puts yaml
-      $stderr.puts e.message
-      metadata.error = true
-      metadata.error_message = e.message
-    end
-    begin
-      metadata.merge!(CONFIG.password_key => pass)
-    rescue NoMethodError => e
-      metadata = OpenStruct.new(error: true)
-      metadata.error_message = e.message
-    end
-
-    Entry.new(
-      File.basename(name),
-      metadata
-    )
+    [pass, yaml]
+  rescue NoMethodError
+    raise "Cannot read password from #{name}"
   end
 
   def files
