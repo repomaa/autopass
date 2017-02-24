@@ -5,7 +5,7 @@ require 'fileutils'
 require 'shellwords'
 require 'digest/sha2'
 require 'ostruct'
-require 'optionparser'
+require 'optparse'
 
 begin
   require 'rotp'
