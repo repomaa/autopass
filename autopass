@@ -93,8 +93,6 @@ class OpenStruct
   end
 end
 
-
-
 DEFAULT_CONFIG = expand_config(
   prompt: 'Search:',
   cache_file: '%{HOME}/.cache/autopass/autopass.cache',
