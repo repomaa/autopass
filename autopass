@@ -93,10 +93,12 @@ class OpenStruct
   end
 end
 
+
+
 DEFAULT_CONFIG = expand_config(
   prompt: 'Search:',
   cache_file: '%{HOME}/.cache/autopass/autopass.cache',
-  password_store: '%{PASSWORD_STORE_DIR}',
+  password_store: ENV['PASSWORD_STORE_DIR'] ||= '%{HOME}/.password-store',
   username_key: 'user',
   password_key: 'pass',
   autotype_3: ':otp',
@@ -111,13 +113,8 @@ DEFAULT_CONFIG = expand_config(
   clip_command: 'xclip',
 )
 
-FALLBACK_CONFIG = expand_config(
-  password_store: '%{HOME}/.password-store'
-)
-
 CONFIG = expand_config(YAML.load_file(config_file))
 CONFIG.reverse_merge!(DEFAULT_CONFIG)
-CONFIG.reverse_merge!(FALLBACK_CONFIG)
 CONFIG[:autotype_1] ||= CONFIG[:password_key]
 CONFIG[:autotype_2] ||= CONFIG[:username_key]
 
