@@ -94,7 +94,6 @@ Default config file:
 # you have to escape it (e.g. `foo: %{BAR}` will raise an error, `foo: '%{BAR}'`
 # will work though)
 
-# prompt: 'Search:'
 cache_file: '%{HOME}/.cache/autopass/autopass.cache'
 # cache_key: YOUR_KEY_ID
 # key_bindings:
@@ -102,7 +101,16 @@ cache_file: '%{HOME}/.cache/autopass/autopass.cache'
 #   copy_username: Alt+u
 #   copy_password: Alt+p
 #   open_browser: Alt+o
-#   copy_otp: 'Alt+c'
+
+# # clipboard command to use:
+# # (default)
+#   clip_command: 'xclip'
+# # or
+#   clip_command: 'xclip -selection clipboard'
+# # Browsers window names to use for matching
+# browsers:
+#   - chrome
+#   - chromium
 ```
 
 ### Defaults:
