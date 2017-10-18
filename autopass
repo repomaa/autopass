@@ -14,8 +14,6 @@ rescue LoadError
   HAS_OTP = false
 end
 
-BROWSERS = %w[chrome chromium firefox opera]
-
 config_dir = ENV['XDG_CONFIG_HOME'] || "#{ENV['HOME']}/.config"
 config_file = File.join(config_dir, 'autopass', 'config.yml')
 unless File.exist?(config_file)
@@ -35,11 +33,15 @@ cache_file: '%{HOME}/.cache/autopass/autopass.cache'
 #   copy_password: Alt+p
 #   open_browser: Alt+o
 
-# clipboard command to use:
-# (default)
+# # clipboard command to use:
+# # (default)
 #   clip_command: 'xclip'
-# or
+# # or
 #   clip_command: 'xclip -selection clipboard'
+# # Browsers window names to use for matching
+# browsers:
+#   - chrome
+#   - chromium
 EOF
   puts "Copied example config to #{config_file}"
   puts 'Please edit and set the gpg key to use for decrypting the cache'
@@ -109,6 +111,7 @@ DEFAULT_CONFIG = expand_config(
   },
   alt_delay: 0.5,
   clip_command: 'xclip',
+  browsers: %w[chrome chromium firefox opera]
 )
 
 CONFIG = expand_config(YAML.load_file(config_file))
@@ -226,7 +229,8 @@ class Entry
     [
       attributes.window, # try window
       Regexp.escape(attributes.url || ''), # try url
-      "#{attributes.window}.*#{Regexp.union(BROWSERS)}", # try window with browser
+      # try window with browser
+      "#{attributes.window}.*#{Regexp.union(CONFIG[:browsers])}",
       Regexp.escape(name || '') # try name
     ].each do |regex|
       output = search_window_id(regex)
