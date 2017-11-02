@@ -1,11 +1,11 @@
 #!/usr/bin/env ruby
 
-require 'yaml'
 require 'fileutils'
 require 'shellwords'
 require 'digest/sha2'
 require 'ostruct'
 require 'optparse'
+require 'autopass/config'
 
 begin
   require 'rotp'
@@ -48,76 +48,11 @@ EOF
   exit
 end
 
-SYM_ENV = Hash[ENV.map { |var, value| [var.to_sym, value] }]
-
-def expand_config(item)
-  case item
-  when Hash
-    ostruct = OpenStruct.new
-    item.each { |key, value| ostruct[key] = expand_config(value) }
-    ostruct
-  when Array then item.map(&method(:expand_config))
-  when String
-    if item =~ /%\{.+\}/
-      item % SYM_ENV
-    else
-      item
-    end
-  else item
-  end
+begin
+  CONFIG = Autopass::Config.load(config_file)
+rescue RuntimeError => e
+  abort("Failed to load config: #{e.message}")
 end
-
-class OpenStruct
-  def merge!(other)
-    other.each_pair do |key, value|
-      own_value = self[key]
-      self[key] = if value.is_a?(OpenStruct) && own_value.is_a?(OpenStruct)
-                    own_value.merge!(value)
-                  else
-                    value
-                  end
-    end
-    self
-  end
-
-  def reverse_merge!(other)
-    other.each_pair do |key, value|
-      own_value = self[key]
-      self[key] = if value.is_a?(OpenStruct) && own_value.is_a?(OpenStruct)
-                    own_value.reverse_merge!(value)
-                  elsif own_value.nil?
-                    value
-                  else
-                    own_value
-                  end
-    end
-    self
-  end
-end
-
-DEFAULT_CONFIG = expand_config(
-  prompt: 'Search:',
-  cache_file: '%{HOME}/.cache/autopass/autopass.cache',
-  password_store: ENV['PASSWORD_STORE_DIR'] ||= '%{HOME}/.password-store',
-  username_key: 'user',
-  password_key: 'pass',
-  autotype_3: ':otp',
-  key_bindings: {
-    copy_username: 'Alt+u',
-    copy_password: 'Alt+p',
-    autotype_tan: 'Alt+t',
-    open_browser: 'Alt+o',
-    copy_otp: 'Alt+c'
-  },
-  alt_delay: 0.5,
-  clip_command: 'xclip',
-  browsers: %w[chrome chromium firefox opera]
-)
-
-CONFIG = expand_config(YAML.load_file(config_file))
-CONFIG.reverse_merge!(DEFAULT_CONFIG)
-CONFIG[:autotype_1] ||= CONFIG[:password_key]
-CONFIG[:autotype_2] ||= CONFIG[:username_key]
 
 OptionParser.new do |opts|
   opts.banner = "Usage: #{File.basename(__FILE__)} [OPTIONS]"
@@ -127,8 +62,8 @@ OptionParser.new do |opts|
   opts.separator "OPTIONS:"
 
   opts.on('-c', '--clear-cache', "Remove cache file") do
-    if File.exist? CONFIG.cache_file
-      File.delete(CONFIG.cache_file)
+    if CONFIG.cache_file.exist?
+      CONFIG.cache_file.delete
       puts "rm #{CONFIG.cache_file}"
     end
     exit
@@ -140,7 +75,7 @@ OptionParser.new do |opts|
   end
 end.parse!
 
-unless Dir.exist?(CONFIG.password_store)
+unless CONFIG.password_store.exist?
   abort('It seems that you havent set up a password store yet. Do so by running `pass init <YOUR_KEY_ID>`')
 end
 
@@ -208,14 +143,12 @@ class Entry
   end
 
   def autotype_keys(index)
-    keys = case index
-           when 0
-             autotype_key = CONFIG.autotype_key || 'autotype'
-             attributes[autotype_key] || CONFIG[autotype_key] || [CONFIG.username_key, ':tab', CONFIG.password_key]
-           when 1 then attributes.autotype_1 || CONFIG.autotype_1
-           when 2 then attributes.autotype_2 || CONFIG.autotype_2
-           when 3 then attributes.autotype_3 || CONFIG.autotype_3
-           else attributes[:"autotype_#{index}"] || CONFIG[:"autotype_#{index}"] || []
+    keys = if index.zero?
+             attributes.autotype || CONFIG.autotype
+           else
+             attributes[:"autotype_#{index}"] ||
+               CONFIG.public_send(:"autotype_#{index}") ||
+               []
            end
     keys = keys.split(/\s+/) if keys.is_a?(String)
     keys
@@ -230,7 +163,7 @@ class Entry
       attributes.window, # try window
       Regexp.escape(attributes.url || ''), # try url
       # try window with browser
-      "#{attributes.window}.*#{Regexp.union(CONFIG[:browsers])}",
+      "#{attributes.window}.*#{Regexp.union(CONFIG.browsers)}",
       Regexp.escape(name || '') # try name
     ].each do |regex|
       output = search_window_id(regex)
@@ -303,7 +236,6 @@ end
 
 class PassBackend
   def initialize
-    fail('cache_key option not defined') unless CONFIG.cache_key
     init_cache
     @needs_saving = false
     update_cache
@@ -326,14 +258,14 @@ class PassBackend
   private
 
   def save_cache
-    File.delete(CONFIG.cache_file) if File.exist?(CONFIG.cache_file)
+    CONFIG.cache_file.delete if CONFIG.cache_file.exist?
     gpg_cmd = 'gpg -eq --batch -r '\
               "#{CONFIG.cache_key}"
-    FileUtils.mkdir_p(File.dirname(CONFIG.cache_file))
+    FileUtils.mkdir_p(CONFIG.cache_file.dirname.to_s)
     IO.popen(gpg_cmd, 'w+') do |io|
       io.puts(Marshal.dump(@cache))
       io.close_write
-      File.open(CONFIG.cache_file, 'wb+', perm: 0600) do |f|
+      CONFIG.cache_file.open('wb+', perm: 0600) do |f|
         f.write(io.read)
       end
     end
@@ -368,7 +300,7 @@ class PassBackend
 
   def files
     result = nil
-    FileUtils.cd(CONFIG.password_store) do
+    FileUtils.cd(CONFIG.password_store.to_s) do
       result = Dir['**/*.gpg']
     end
     result
@@ -389,7 +321,7 @@ class PassBackend
 
   def checksums
     result = nil
-    FileUtils.cd(CONFIG.password_store) do
+    FileUtils.cd(CONFIG.password_store.to_s) do
       result = Hash[
         files.map { |file| [file, Digest::SHA512.file(file).hexdigest] }
       ]
@@ -398,7 +330,7 @@ class PassBackend
   end
 
   def init_cache
-    if File.exist?(CONFIG.cache_file)
+    if CONFIG.cache_file.exist?
       @cache = Marshal.load(`gpg -dq --batch #{CONFIG.cache_file}`)
     else
       @cache = { checksums: {}, entries: {} }
@@ -424,11 +356,16 @@ rofi_args.concat(['-kb-custom-9', CONFIG.key_bindings.copy_username])
 rofi_args.concat(['-kb-custom-10', CONFIG.key_bindings.open_browser])
 rofi_args.concat(['-kb-custom-11', CONFIG.key_bindings.copy_otp])
 rofi_args << '-mesg'
+
+autotypes = {}
+
+(1..5).map do |i|
+  autotype = CONFIG.public_send(:"autotype_#{i}")
+  autotypes[i] = autotype if autotype
+end
+
 msgs = [
-  "Alt-1: Autotype #{CONFIG.autotype_1}",
-  "Alt-2: Autotype #{CONFIG.autotype_2}",
-  "Alt-3: Autotype #{CONFIG.autotype_3}",
-  "Alt-{4-6}: Alternative autotypes",
+  *autotypes.map { |i, autotype| "Alt-#{i}: Autotype #{autotype.join(' ')}" },
   "#{CONFIG.key_bindings.autotype_tan}: Autotype TAN",
   "#{CONFIG.key_bindings.copy_password}: Copy password",
   "#{CONFIG.key_bindings.copy_username}: Copy username",

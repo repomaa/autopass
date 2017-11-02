@@ -1,0 +1,5 @@
+---
+cache_key: 'ABCDEF'
+prompt: 'Test prompt:'
+key_bindings:
+  copy_password: 'Alt+c'
