@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require 'date'
+
 module Autopass
   # A single entry in the password store
   class Entry
@@ -33,14 +35,14 @@ module Autopass
 
     def self.load(entry)
       content = Util::Pass.show(entry)
-      metadata = parse_content(content)
+      metadata = parse_content(entry, content)
       new(entry, OpenStruct.new(metadata))
     end
 
-    def self.parse_content(content)
+    def self.parse_content(entry, content)
       password, *yaml = content.split("\n")
       yaml = yaml.join("\n")
-      YAML.safe_load(yaml).tap do |metadata|
+      (YAML.safe_load(yaml, [Date]) || {}).tap do |metadata|
         metadata[CONFIG.password_key] = password
       end
     rescue RuntimeError => e
