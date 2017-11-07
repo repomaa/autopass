@@ -6,7 +6,7 @@ require 'digest/sha2'
 require 'ostruct'
 require 'optparse'
 require 'autopass/config'
-require 'autopass/entry'
+require 'autopass/pass_backend'
 
 config_dir = ENV['XDG_CONFIG_HOME'] || "#{ENV['HOME']}/.config"
 config_file = File.join(config_dir, 'autopass', 'config.yml')
@@ -77,91 +77,9 @@ def notify(message, type = :normal, milliseconds = 5000)
   system('notify-send', '-a', File.basename(__FILE__, '.rb').to_s, '-u', type.to_s, '-t', milliseconds.to_s, message.to_s)
 end
 
-class PassBackend
-  def initialize
-    init_cache
-    @needs_saving = false
-    update_cache
-    save_cache if needs_saving?
-  end
-
-  def entries
-    @cache[:entries]
-  end
-
-  def sorted_entries(focused_window)
-    Hash[
-      entries.sort_by do |name, entry|
-        match = entry.match(focused_window)
-        match ? "\0" * focused_window.sub(match[0], '').size : name
-      end
-    ]
-  end
-
-  private
-
-  def save_cache
-    CONFIG.cache_file.delete if CONFIG.cache_file.exist?
-    gpg_cmd = 'gpg -eq --batch -r '\
-              "#{CONFIG.cache_key}"
-    FileUtils.mkdir_p(CONFIG.cache_file.dirname.to_s)
-    IO.popen(gpg_cmd, 'w+') do |io|
-      io.puts(Marshal.dump(@cache))
-      io.close_write
-      CONFIG.cache_file.open('wb+', perm: 0600) do |f|
-        f.write(io.read)
-      end
-    end
-  end
-
-  def entry_from(file)
-    name = file.sub(/\.gpg$/, '')
-    Autopass::Entry.load(File.basename(name))
-  end
-
-  def files
-    result = nil
-    FileUtils.cd(CONFIG.password_store.to_s) do
-      result = Dir['**/*.gpg']
-    end
-    result
-  end
-
-  def needs_saving?
-    @needs_saving
-  end
-
-  def update_cache
-    checksums.each do |file, checksum|
-      next if @cache[:checksums][file] == checksum
-      @cache[:entries][file.sub(/\.gpg$/, '')] = entry_from(file)
-      @cache[:checksums][file] = checksum
-      @needs_saving = true
-    end
-  end
-
-  def checksums
-    result = nil
-    FileUtils.cd(CONFIG.password_store.to_s) do
-      result = Hash[
-        files.map { |file| [file, Digest::SHA512.file(file).hexdigest] }
-      ]
-    end
-    result
-  end
-
-  def init_cache
-    if CONFIG.cache_file.exist?
-      @cache = Marshal.load(`gpg -dq --batch #{CONFIG.cache_file}`)
-    else
-      @cache = { checksums: {}, entries: {} }
-    end
-  end
-end
-
 focused_window_id = `xdotool getwindowfocus`.chomp.to_i
 focused_window_name = `xdotool getwindowname #{focused_window_id}`
-pass_backend = PassBackend.new
+pass_backend = Autopass::PassBackend.new
 
 choice = nil
 

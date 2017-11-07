@@ -81,5 +81,20 @@ module Autopass
         [result && result.chomp, $CHILD_STATUS]
       end
     end
+
+    # Wrapper around gpg
+    module GPG
+      module_function
+
+      def encrypt(key, &block)
+        gpg_cmd = ['gpg', '-eq', '--batch', '-r', key]
+        IO.popen(gpg_cmd, 'w+', &block)
+      end
+
+      def decrypt(&block)
+        gpg_cmd = ['gpg', '-dq', '--batch']
+        IO.popen(gpg_cmd, 'w+', &block)
+      end
+    end
   end
 end
