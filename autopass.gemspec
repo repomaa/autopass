@@ -32,4 +32,5 @@ Gem::Specification.new do |spec|
 
   spec.add_dependency 'dry-struct', '~> 0.3'
   spec.add_dependency 'dry-types', '~> 0.1'
+  spec.add_dependency 'rotp', '~> 3.3'
 end
