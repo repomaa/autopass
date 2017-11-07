@@ -23,6 +23,8 @@ module Autopass
 
     # Wrapper around xclip
     module Xclip
+      module_function
+
       def copy(string)
         IO.popen(CONFIG.clip_command, 'w+') { |io| io.print(string) }
       end

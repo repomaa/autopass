@@ -1,24 +1,13 @@
 # frozen_string_literal: true
 
 require 'date'
+require 'json'
+require 'digest'
+require 'ostruct'
 
 module Autopass
   # A single entry in the password store
   class Entry
-    # Signals a missing otp secret
-    class OTPSecretMissingError < RuntimeError
-      def initialize
-        super('No OTP secret found for this entry')
-      end
-    end
-
-    # Signals a missing key
-    class KeyMissingError < RuntimeError
-      def initialize(keys)
-        super("No key '#{keys.join('+')}' found for this entry")
-      end
-    end
-
     # Signals a missing url
     class URLNotFoundError < RuntimeError
       def initialize
@@ -26,102 +15,57 @@ module Autopass
       end
     end
 
-    attr_reader :name, :attributes
+    attr_reader :name
 
-    def initialize(name, attributes)
-      @name = name
-      @attributes = attributes
+    def initialize(attributes, decrypted: false)
+      @name = attributes[:name]
+      @path = Pathname(attributes[:path])
+      @checksum = attributes.fetch(:checksum, calculate_checksum)
+
+      @attributes = attributes[:user_attributes]
+      @decrypted = decrypted
     end
 
-    def self.load(entry)
-      content = Util::Pass.show(entry)
-      metadata = parse_content(entry, content)
-      new(entry, OpenStruct.new(metadata))
+    def attributes
+      OpenStruct.new(@attributes)
     end
 
-    def self.parse_content(entry, content)
-      password, *yaml = content.split("\n")
-      yaml = yaml.join("\n")
-      (YAML.safe_load(yaml, [Date]) || {}).tap do |metadata|
-        metadata[CONFIG.password_key] = password
-      end
-    rescue RuntimeError => e
-      message = "Failed parsing entry '#{entry}'"
-      Util.notify(message, console_info: [password, yaml, e.message])
-      { error: true }
+    def to_json(*args)
+      {
+        name: @name, path: @path, checksum: @checksum,
+        user_attributes: @attributes
+      }.to_json(*args)
     end
 
-    def autotype!(index = 0)
-      keys = autotype_keys(index)
-
-      raise KeyMissingError, keys if autotype_values(keys).empty?
-
-      sleep CONFIG.alt_delay if index > 0
-      Util::Xdo.focus(window_id)
-      perform_autotype(autotype_values(keys))
+    def exist?
+      @path.exist?
     end
 
-    def autotype_tan
-      raise 'This entry has no tan attribute' unless attributes.tan
-
-      tans = attributes.tan.lines
-      tan_number = ask_tan_number(tans.size)
-      tan = tans[tan_number - 1]
-      Util::Xdo.focus(window_id)
-      perform_autotype([tan.strip])
+    def decrypt!
+      return if @decrypted
+      content = Util::Pass.show(@name)
+      @attributes = parse_content(content)
+      @decrypted = true
     end
 
-    def otp
-      raise OTPSecretMissingError unless attributes.otp_secret
-      ROTP::TOTP.new(attributes.otp_secret).now
-    end
-
-    def autotype_values(keys)
-      keys.map { |key| key[0] == ':' ? key : attributes[key] }.compact
-    end
-
-    def autotype_keys(index)
-      keys = if index.zero?
-               attributes.autotype || CONFIG.autotype
-             else
-               attributes[:"autotype_#{index}"] ||
-                 CONFIG.public_send(:"autotype_#{index}") ||
-                 []
-             end
-      keys = keys.split(/\s+/) if keys.is_a?(String)
-      keys
-    end
-
-    def window_id
-      window_search_strings.each do |regex|
-        result = Util::Xdo.search(regex)
-        return result.first if result.size == 1
-      end
-
-      select_window_id_by_user!
-    end
-
-    def window_search_strings
-      [
-        attributes.window, # try window
-        Regexp.escape(attributes.url || ''), # try url
-        # try window with browser
-        "#{attributes.window}.*#{Regexp.union(CONFIG.browsers)}",
-        Regexp.escape(name || '') # try name
-      ]
+    def reload!
+      checksum = calculate_checksum
+      return if @checksum == checksum && @decrypted
+      @checksum = checksum
+      @decrypted = false
+      decrypt!
     end
 
     def match(window_name)
-      matcher = attributes.window || Regexp.escape(attributes.url || name)
+      basename = File.basename(name)
+      matcher = attributes.window || Regexp.escape(attributes.url || basename)
       window_name.match(/#{matcher}/i)
     end
 
-    def select_window_id_by_user!
-      Util.notify('Please select the target window')
-      window = Util::Xdo.info
-      Util::Xclip.copy(window[:title])
-      puts "selected window: '#{window[:title]}' copied to clipboard"
-      window[:id]
+    def self.load(file)
+      relative_path = file.relative_path_from(CONFIG.password_store)
+      name = relative_path.sub(/\.gpg$/, '').to_s
+      new(name: name, path: file)
     end
 
     def open_url!
@@ -131,21 +75,20 @@ module Autopass
 
     private
 
-    def perform_autotype(values)
-      values.each do |value|
-        case value
-        when ':tab' then Utils::Xdo.key('Tab')
-        when ':enter' then Utils::Xdo.key('Return')
-        else
-          text = value == ':otp' ? otp : value
-          Utils::Xdo.type(text)
-        end
-      end
+    def calculate_checksum
+      Digest::MD5.file(@path.to_s).hexdigest
     end
 
-    def ask_tan_number(tans_size)
-      number, * = Utils::Rofi.menu('TAN number:', 1...tans_size)
-      number.to_i
+    def parse_content(content)
+      password, *yaml = content.split("\n")
+      yaml = yaml.join("\n")
+      (YAML.safe_load(yaml, [Date]) || {}).tap do |metadata|
+        metadata[CONFIG.password_key] = password
+      end
+    rescue RuntimeError => e
+      message = "Failed parsing entry '#{@name}'"
+      Util.notify(message, console_info: [password, yaml, e.message])
+      { error: true }
     end
   end
 end
