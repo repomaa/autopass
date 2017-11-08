@@ -54,9 +54,14 @@ module Autopass
     end
 
     def update!
+      puts 'Updating cache...'
       @entries.select!(&:exist?)
-      @entries.each(&:reload!)
+      @entries.each_with_index do |entry, i|
+        print progressbar(i)
+        entry.reload!
+      end
 
+      puts
       save!
     end
 
@@ -72,6 +77,13 @@ module Autopass
           file.write(gpg.read)
         end
       end
+    end
+
+    private
+
+    def progressbar(i)
+      progress = i * 50 / @entries.size
+      "[#{'#' * progress}#{' ' * (49 - progress)}]\r"
     end
   end
 end
