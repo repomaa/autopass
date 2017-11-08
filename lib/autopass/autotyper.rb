@@ -101,6 +101,7 @@ module Autopass
         case value
         when ':tab' then Util::Xdo.key('Tab')
         when ':enter' then Util::Xdo.key('Return')
+        when ':delay' then sleep(CONFIG.delay)
         else
           text = value == ':otp' ? otp : value
           Util::Xdo.type(text)

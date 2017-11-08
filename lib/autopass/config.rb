@@ -53,6 +53,7 @@ module Autopass
     )
 
     attribute :alt_delay, Types::Float.default(0.5)
+    attribute :delay, Types::Float.default(0.5)
     attribute :clip_command, Types::String.default('xclip')
     attribute :browsers, Types::SpaceSeparatedArray.default(
       %w[chrome chromium firefox opera]
