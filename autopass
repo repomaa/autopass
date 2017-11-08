@@ -98,7 +98,7 @@ end
 DEFAULT_CONFIG = expand_config(
   prompt: 'Search:',
   cache_file: '%{HOME}/.cache/autopass/autopass.cache',
-  password_store: '%{HOME}/.password-store',
+  password_store: ENV['PASSWORD_STORE_DIR'] ||= '%{HOME}/.password-store',
   username_key: 'user',
   password_key: 'pass',
   autotype_3: ':otp',
