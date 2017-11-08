@@ -15,7 +15,7 @@ module Autopass
     end
 
     def self.load
-      if CONFIG.cache_file.exist?
+      if CONFIG.cache_file.exist? && CONFIG.use_cache
         decrypt
       else
         new(files.map(&Entry.method(:load)))
@@ -54,6 +54,8 @@ module Autopass
     end
 
     def update!
+      return unless CONFIG.use_cache
+
       puts 'Updating cache...'
       @entries.select!(&:exist?)
       @entries.each_with_index do |entry, i|
@@ -66,6 +68,8 @@ module Autopass
     end
 
     def save!
+      return unless CONFIG.use_cache
+
       cache_file = CONFIG.cache_file
       FileUtils.mkdir_p(cache_file.dirname.to_s)
 

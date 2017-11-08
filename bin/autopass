@@ -159,6 +159,8 @@ def copy(attribute, notification_seconds = 5)
   end
 end
 
+@entry.decrypt!
+
 begin
   case return_value
   when 0 then Autopass::Autotyper.new(@entry).autotype!

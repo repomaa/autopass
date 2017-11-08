@@ -20,7 +20,6 @@ module Autopass
     attr_reader :name, :attributes
 
     def initialize(entry)
-      entry.decrypt!
       @name = entry.name
       @attributes = entry.attributes
     end

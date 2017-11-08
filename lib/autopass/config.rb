@@ -20,6 +20,7 @@ module Autopass
     end
 
     attribute :prompt, Types::String.default('Search:')
+    attribute :use_cache, Types::Bool.default(true)
     attribute :cache_key, Types::String.optional.default(nil)
     attribute(:cache_file, Types::Pathname.default do
       (
@@ -62,7 +63,8 @@ module Autopass
       self.autotype ||= [username_key, ':tab', password_key]
       self.autotype_1 ||= [password_key]
       self.autotype_2 ||= [username_key]
-      raise ArgumentError, 'Missing option: cache_key' unless cache_key
+      return if !use_cache || cache_key
+      raise ArgumentError, 'Missing option: cache_key'
     end
 
     def self.load(file)
