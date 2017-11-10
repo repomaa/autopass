@@ -6,6 +6,7 @@ require 'shellwords'
 require 'digest/sha2'
 require 'ostruct'
 require 'optparse'
+require 'open3'
 
 begin
   require 'rotp'
@@ -143,6 +144,8 @@ end.parse!
 unless Dir.exist?(CONFIG.password_store)
   abort('It seems that you havent set up a password store yet. Do so by running `pass init <YOUR_KEY_ID>`')
 end
+
+ENV['PASSWORD_STORE_DIR'] = CONFIG.password_store
 
 def notify(message, type = :normal, milliseconds = 5000)
   system('notify-send', '-a', File.basename(__FILE__, '.rb').to_s, '-u', type.to_s, '-t', milliseconds.to_s, message.to_s)
@@ -349,7 +352,7 @@ class PassBackend
     $stderr.puts "Failed parsing entry '#{name}':"
     $stderr.puts pass, yaml
     $stderr.puts e.message
-    Entry.new(File.basename(name, error: true))
+    Entry.new(File.basename(name), error: true)
   end
 
   def parse_metadata(yaml)
@@ -357,15 +360,15 @@ class PassBackend
   end
 
   def read_entry(name)
-    content = IO.popen(
-      { PASSWORD_STORE_DIR: CONFIG.password_store }, ['pass', 'show', name],
-      &:read
-    )
+    Open3.popen3('pass', 'show', name) do |_, stdout, stderr, wait_thr|
+      pass = stdout.gets
+      yaml = stdout.read
+      unless wait_thr.value.success?
+        raise "Pass exited with error when reading from #{name}: #{stderr.read}"
+      end
 
-    raise "Pass exited with error when reading from #{name}" unless $?.success?
-    pass = content.lines.first.chomp
-    yaml = (content.lines[1..-1] || []).join
-    [pass, yaml]
+      [pass.chomp, yaml]
+    end
   rescue NoMethodError
     raise "Cannot read password from #{name}"
   end
