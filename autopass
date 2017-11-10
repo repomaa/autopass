@@ -358,7 +358,7 @@ class PassBackend
 
   def read_entry(name)
     content = IO.popen(
-      { PASSWORD_STORE_DIR: Config.password_store }, ['pass', 'show', name],
+      { PASSWORD_STORE_DIR: CONFIG.password_store }, ['pass', 'show', name],
       &:read
     )
 
