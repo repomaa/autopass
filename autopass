@@ -357,7 +357,11 @@ class PassBackend
   end
 
   def read_entry(name)
-    content = `pass show #{Shellwords.escape(name)}`
+    content = IO.popen(
+      { PASSWORD_STORE_DIR: Config.password_store }, ['pass', 'show', name],
+      &:read
+    )
+
     raise "Pass exited with error when reading from #{name}" unless $?.success?
     pass = content.lines.first.chomp
     yaml = (content.lines[1..-1] || []).join
