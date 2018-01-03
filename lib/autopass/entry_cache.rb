@@ -58,6 +58,7 @@ module Autopass
 
       puts 'Updating cache...'
       @entries.select!(&:exist?)
+      @entries |= self.class.files.map(&Entry.method(:load))
       @entries.each_with_index do |entry, i|
         print progressbar(i)
         entry.reload!

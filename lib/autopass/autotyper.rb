@@ -68,7 +68,7 @@ module Autopass
 
     def window_id
       window_search_strings.each do |regex|
-        next if regex.empty?
+        next unless regex && !regex.empty?
         result = Util::Xdo.search(regex)
         return result.first if result.size == 1
       end

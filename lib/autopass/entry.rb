@@ -15,7 +15,7 @@ module Autopass
       end
     end
 
-    attr_reader :name
+    attr_reader :name, :path, :checksum
 
     def initialize(attributes, decrypted: false)
       @name = attributes[:name]
@@ -24,6 +24,16 @@ module Autopass
 
       @attributes = attributes[:user_attributes]
       @decrypted = decrypted
+    end
+
+    def ==(other)
+      checksum == other.checksum && path == other.path
+    end
+
+    alias eql? ==
+
+    def hash
+      [checksum, path].hash
     end
 
     def attributes
