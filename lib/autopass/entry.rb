@@ -55,6 +55,7 @@ module Autopass
       return if @decrypted
       content = Util::Pass.show(@name)
       @attributes = parse_content(content)
+      @name = @attributes.fetch('name', @name)
       @decrypted = true
     end
 
