@@ -87,6 +87,7 @@ module Autopass
     private
 
     def calculate_checksum
+      return unless exist?
       Digest::MD5.file(@path.to_s).hexdigest
     end
 
