@@ -22,7 +22,7 @@ module Autopass
       end
     end
 
-    SpaceSeparatedArray = Strict::Array.member(String).constructor do |value|
+    SpaceSeparatedArray = Strict::Array.of(String).constructor do |value|
       value.is_a?(::Array) ? value : String[value].split(/\s+/)
     end
   end

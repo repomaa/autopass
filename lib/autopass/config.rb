@@ -6,11 +6,11 @@ require 'yaml'
 module Autopass
   # Autopass config
   class Config < Dry::Struct
-    constructor_type :strict_with_defaults
+    constructor :strict_with_defaults
 
     # Config for keybindings
     class KeyBindings < Dry::Struct
-      constructor_type :strict_with_defaults
+      constructor :strict_with_defaults
 
       attribute :copy_username, Types::String.default('Alt+u')
       attribute :copy_password, Types::String.default('Alt+p')
