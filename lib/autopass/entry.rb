@@ -97,8 +97,8 @@ module Autopass
       (YAML.safe_load(yaml, [Date]) || {}).tap do |metadata|
         metadata[CONFIG.password_key] = password
       end
-    rescue RuntimeError => e
-      message = "Failed parsing entry '#{@name}'"
+    rescue StandardError => e
+      message = "Failed parsing entry '#{@name}': #{e.message}"
       Util.notify(message, console_info: [password, yaml, e.message])
       { error: true }
     end
