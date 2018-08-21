@@ -77,11 +77,12 @@ tan: |
 # ...
 ```
 
-You can write any kind of key value pairs here as long as it's valid yaml.
-The keys `autotype`, `autotype_{1-7}`, `window`, `otp_secret` and `tan` have
-special meanings. `':tab'` hits - you guessed it - the Tab key, `':enter'` hits
-the Enter key, `':otp'` types the current time based one time password.
-Make sure you add `otp_secret` to an entry when using `':otp'`.
+You can write any kind of key value pairs here as long as it's valid yaml.  The
+keys `autotype`, `autotype_{1-7}`, `window`, `otp_secret` and `tan` have special
+meanings. `':tab'` hits - you guessed it - the Tab key, `':enter'` hits the
+Enter key, `':otp'` types the current time based one time password, `:delay`
+delays the autotype sequence.  Make sure you add `otp_secret` to an entry when
+using `':otp'`.
 
 ### Config:
 
@@ -120,6 +121,8 @@ cache_file: '%{HOME}/.cache/autopass/autopass.cache'
 - `autotype_1`: `[pass]`
 - `autotype_2`: `[user]`
 - `autotype_3`: `[':otp']`
+- `alt_delay`: `0.5`
+- `delay`: `0.5`
 
 You can define global fallbacks for `autotype` and `autotype_{1-7}` in the
 config file located in `$XDG_CONFIG_HOME/autopass`. You could override the

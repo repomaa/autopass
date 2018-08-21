@@ -1,0 +1,176 @@
+#!/usr/bin/env ruby
+
+require 'fileutils'
+require 'optparse'
+require 'autopass/config'
+require 'autopass/entry_cache'
+require 'autopass/autotyper'
+
+config_dir = ENV['XDG_CONFIG_HOME'] || "#{ENV['HOME']}/.config"
+config_file = File.join(config_dir, 'autopass', 'config.yml')
+unless File.exist?(config_file)
+  FileUtils.mkdir_p(File.dirname(config_file))
+  File.write config_file, <<EOF
+---
+# you can insert any environment variable inside %{} for it to be replaced by
+# the value of that variable. If it needs to be at the beginning of the string
+# you have to escape it (e.g. `foo: %{BAR}` will raise an error, `foo: '%{BAR}'`
+# will work though)
+
+cache_file: '%{HOME}/.cache/autopass/autopass.cache'
+# cache_key: YOUR_KEY_ID
+# key_bindings:
+#   autotype_tan: Alt+t
+#   copy_username: Alt+u
+#   copy_password: Alt+p
+#   open_browser: Alt+o
+
+# # clipboard command to use:
+# # (default)
+#   clip_command: 'xclip'
+# # or
+#   clip_command: 'xclip -selection clipboard'
+# # Browsers window names to use for matching
+# browsers:
+#   - chrome
+#   - chromium
+EOF
+  puts "Copied example config to #{config_file}"
+  puts 'Please edit and set the gpg key to use for decrypting the cache'
+  exit
+end
+
+begin
+  CONFIG = Autopass::Config.load(config_file)
+rescue RuntimeError => e
+  abort("Failed to load config: #{e.message}")
+end
+
+OptionParser.new do |opts|
+  opts.banner = "Usage: #{File.basename(__FILE__)} [OPTIONS]"
+  opts.separator ""
+  opts.separator 'Rofi frontend for pass and copy or autotype your passwords.'
+  opts.separator ""
+  opts.separator "OPTIONS:"
+
+  opts.on('-c', '--clear-cache', "Remove cache file") do
+    if CONFIG.cache_file.exist?
+      CONFIG.cache_file.delete
+      puts "rm #{CONFIG.cache_file}"
+    end
+    exit
+  end
+
+  opts.on("-h", "--help", "Show this help message") do
+    puts opts
+    exit
+  end
+end.parse!
+
+unless CONFIG.password_store.exist?
+  abort('It seems that you havent set up a password store yet. Do so by running `pass init <YOUR_KEY_ID>`')
+end
+
+def notify(message, type = :normal, milliseconds = 5000)
+  system('notify-send', '-a', File.basename(__FILE__, '.rb').to_s, '-u', type.to_s, '-t', milliseconds.to_s, message.to_s)
+end
+
+focused_window_id = `xdotool getwindowfocus`.chomp.to_i
+focused_window_name = `xdotool getwindowname #{focused_window_id}`
+entry_cache = Autopass::EntryCache.load
+
+choice = nil
+
+sorted_entries = entry_cache.sorted_entries(focused_window_name)
+errorneus_entry_indices = sorted_entries.each_with_index.reduce([]) do |result, (entry, i)|
+  entry.attributes.error == true ? result << i : result
+end
+
+rofi_args = %W(-dmenu -i -z -p #{CONFIG.prompt})
+rofi_args.concat(['-kb-custom-7', CONFIG.key_bindings.autotype_tan])
+rofi_args.concat(['-kb-custom-8', CONFIG.key_bindings.copy_password])
+rofi_args.concat(['-kb-custom-9', CONFIG.key_bindings.copy_username])
+rofi_args.concat(['-kb-custom-10', CONFIG.key_bindings.open_browser])
+rofi_args.concat(['-kb-custom-11', CONFIG.key_bindings.copy_otp])
+rofi_args << '-mesg'
+
+autotypes = {}
+
+(1..5).map do |i|
+  autotype = CONFIG.public_send(:"autotype_#{i}")
+  autotypes[i] = autotype if autotype
+end
+
+msgs = [
+  *autotypes.map { |i, autotype| "Alt-#{i}: Autotype #{autotype.join(' ')}" },
+  "#{CONFIG.key_bindings.autotype_tan}: Autotype TAN",
+  "#{CONFIG.key_bindings.copy_password}: Copy password",
+  "#{CONFIG.key_bindings.copy_username}: Copy username",
+  "#{CONFIG.key_bindings.copy_otp}: Copy OTP-Code",
+  "#{CONFIG.key_bindings.open_browser}: Open URL in browser"
+]
+half = (msgs.length / 2.0).ceil
+msgs = msgs.first(half).map.with_index do |msg, index|
+  left = msg.to_s.ljust(40, ' ')
+  right = msgs[half+index]
+  [left, right].join
+end
+rofi_args << msgs.join("\n")
+
+
+unless errorneus_entry_indices.empty?
+  rofi_args.concat(['-u', errorneus_entry_indices.join(',')])
+end
+
+IO.popen(['rofi', *rofi_args], 'w+') do |io|
+  io.puts(*sorted_entries.map(&:name))
+  io.close_write
+  choice = io.gets
+  exit if choice.nil?
+end
+
+return_value = $?.exitstatus
+
+@entry = entry_cache.entries.find { |entry| entry.name == choice.chomp }
+
+if @entry.attributes.error == true
+  system('rofi', '-e', @entry.attributes.error_message)
+  exit 1
+end
+
+def copy(attribute, notification_seconds = 5)
+  clear_clip_pidfile = '/tmp/autopass-clear-clip.pid'
+  value = attribute == :otp ? @entry.otp : @entry.attributes[attribute]
+
+  if File.exist?(clear_clip_pidfile)
+    Process.kill(:INT, File.read(clear_clip_pidfile).to_i)
+  end
+  IO.popen(CONFIG.clip_command, 'w+') { |io| io.print(value) }
+  notify("Copied #{attribute} to clipboard. Clearing in 45 seconds", :normal, notification_seconds*1000)
+  fork do
+    File.write(clear_clip_pidfile, Process.pid)
+    begin
+      sleep(45)
+    rescue Interrupt
+      exit
+    end
+    IO.popen(CONFIG.clip_command, 'w+') { |io| io.print('') }
+    File.delete(clear_clip_pidfile)
+  end
+end
+
+@entry.decrypt!
+
+begin
+  case return_value
+  when 0 then Autopass::Autotyper.new(@entry).autotype!
+  when 10..15 then Autopass::Autotyper.new(@entry).autotype!(return_value - 9)
+  when 16 then Autopass::Autotyper.new(@entry).autotype_tan
+  when 17 then copy(CONFIG.password_key)
+  when 18 then copy(CONFIG.username_key)
+  when 19 then @entry.open_url!
+  when 20 then copy(:otp, 10)
+  end
+rescue RuntimeError => e
+  Autopass::Util.notify(e.message, type: :critical)
+end

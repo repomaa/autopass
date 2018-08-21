@@ -1,0 +1,10 @@
+require: rubocop-rspec
+
+Metrics/BlockLength:
+  Exclude:
+    - 'spec/**/*.rb'
+    - 'lib/capistrano/tasks/**/*.cap'
+    - 'config/**/*.rb'
+
+RSpec/NestedGroups:
+  Max: 5
