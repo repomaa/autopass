@@ -22,7 +22,7 @@ module Autopass
       @path = Pathname(attributes[:path])
       @checksum = attributes.fetch(:checksum, calculate_checksum)
 
-      @attributes = attributes[:user_attributes]
+      @attributes = (attributes[:user_attributes] || {}).merge('path' => @path)
       @decrypted = decrypted
     end
 
@@ -54,7 +54,7 @@ module Autopass
     def decrypt!
       return if @decrypted
       content = Util::Pass.show(@name)
-      @attributes = parse_content(content)
+      @attributes = parse_content(content).merge('path' => @path)
       @name = @attributes.fetch('name', @name)
       @decrypted = true
     end
