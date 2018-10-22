@@ -20,7 +20,11 @@ Get autopass-git with your favorite aur helper
 
 ### Other systems
 
-Copy autopass from this repo somewhere in your path.
+- Install the ruby development package from your distribution (`ruby-devel` or `ruby-dev` on Debian)
+- Run `gem install bundler` to install the bundler ruby gem
+- Clone this repositority and `cd` into it
+- Run `bundle install`
+- Then run `bundle exec rake install` with root permissions (because it will install autopass globally)
 
 #### Dependencies:
 
