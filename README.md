@@ -2,6 +2,13 @@
 
 A rofi frontend for pass
 
+## :warning: DEPRECATED :warning:
+
+This project is deprecated. Please check out
+[autopass.cr](https://github.com/repomaa/autopass.cr). Autopass.cr has all the
+features of autopass and some more. Migrating is easy, you'll only need to
+rebuild the cache.
+
 ## Features
 
 - performs autotype with entries
